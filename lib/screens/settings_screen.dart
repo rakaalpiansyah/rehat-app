@@ -1,6 +1,4 @@
-// File: lib/screens/settings_screen.dart
 import 'package:flutter/material.dart';
-import '../widgets/custom_card.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -8,11 +6,14 @@ class SettingsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Pengaturan", style: TextStyle(fontWeight: FontWeight.bold))),
+      appBar: AppBar(
+        title: const Text("Pengaturan", style: TextStyle(fontWeight: FontWeight.bold)),
+      ),
       body: ListView(
         padding: const EdgeInsets.all(24),
         children: [
-          const CustomCard(
+          // KARTU 1: Suara Notifikasi
+          const _CustomCard(
             padding: EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -20,22 +21,49 @@ class SettingsScreen extends StatelessWidget {
                 Row(children: [
                   Icon(Icons.volume_up, color: Color(0xFF6B4EFF)),
                   SizedBox(width: 10),
-                  Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text("Suara Notifikasi", style: TextStyle(fontWeight: FontWeight.bold)), Text("Pilih audio yang menenangkan", style: TextStyle(fontSize: 12, color: Colors.grey))])
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start, 
+                    children: [
+                      Text("Suara Notifikasi", style: TextStyle(fontWeight: FontWeight.bold)), 
+                      Text("Pilih audio yang menenangkan", style: TextStyle(fontSize: 12, color: Colors.grey))
+                    ]
+                  )
                 ]),
                 SizedBox(height: 20),
                 _SoundGrid(),
               ],
             ),
           ),
+          
           const SizedBox(height: 16),
-          // Toggle Getaran
-          CustomCard(
+          
+          // KARTU 2: Toggle Getaran
+          _CustomCard(
             child: Row(
               children: [
-                Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.purple[50], borderRadius: BorderRadius.circular(10)), child: const Icon(Icons.vibration, color: Colors.purple)),
+                Container(
+                  padding: const EdgeInsets.all(10), 
+                  decoration: BoxDecoration(
+                    color: Colors.purple[50], 
+                    borderRadius: BorderRadius.circular(10)
+                  ), 
+                  child: const Icon(Icons.vibration, color: Colors.purple)
+                ),
                 const SizedBox(width: 15),
-                const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text("Getaran", style: TextStyle(fontWeight: FontWeight.bold)), Text("Aktifkan getaran notifikasi", style: TextStyle(fontSize: 12, color: Colors.grey))])),
-                Switch(value: true, onChanged: (val){}, activeThumbColor: const Color(0xFF6B4EFF)),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start, 
+                    children: [
+                      Text("Getaran", style: TextStyle(fontWeight: FontWeight.bold)), 
+                      Text("Aktifkan getaran notifikasi", style: TextStyle(fontSize: 12, color: Colors.grey))
+                    ]
+                  )
+                ),
+                Switch(
+                  value: true, 
+                  onChanged: (val){}, 
+                  activeThumbColor: const Color(0xFF6B4EFF)
+                ),
               ],
             ),
           )
@@ -44,6 +72,10 @@ class SettingsScreen extends StatelessWidget {
     );
   }
 }
+
+// ==========================================
+// WIDGET LOKAL (Hanya untuk halaman ini)
+// ==========================================
 
 class _SoundGrid extends StatelessWidget {
   const _SoundGrid();
@@ -90,6 +122,43 @@ class _SoundGrid extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+// Class CustomCard dipindahkan ke sini dan diberi nama _CustomCard (Private)
+class _CustomCard extends StatelessWidget {
+  final Widget child;
+  final EdgeInsets padding;
+  final VoidCallback? onTap;
+
+  const _CustomCard({
+    // ignore: unused_element
+    super.key,
+    required this.child,
+    this.padding = const EdgeInsets.all(20),
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: padding,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 20,
+              offset: const Offset(0, 10),
+            ),
+          ],
+        ),
+        child: child,
+      ),
     );
   }
 }

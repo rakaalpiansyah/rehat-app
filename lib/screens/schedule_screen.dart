@@ -1,14 +1,33 @@
+// File: lib/screens/schedule_screen.dart
 import 'package:flutter/material.dart';
-// import 'package:shared_preferences/shared_preferences.dart'; // HAPUS INI
-import '../core/theme.dart';
 import '../models/schedule_model.dart';
 import 'create_schedule_screen.dart';
 import '../services/notification_service.dart';
-import '../services/database_helper.dart'; // TAMBAHKAN INI
-import 'package:timezone/timezone.dart' as tz;
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import '../services/database_helper.dart';
 
+// =========================================================
+// 1. KELAS THEME LOKAL (UI LAMA)
+// =========================================================
+class ScheduleTheme {
+  static const Color primaryPurple = Color(0xFF8B5CF6);
+  static const Color accentBlue = Color(0xFF3B82F6);
+  static const Color accentPink = Color(0xFFEC4899);
+  
+  static const Color backgroundLight = Color(0xFFF5F7FB);
+  static const Color cardColor = Colors.white;
+  static const Color textDark = Color(0xFF1F2937);
+  static const Color textGrey = Color(0xFF9CA3AF);
 
+  static const LinearGradient primaryGradient = LinearGradient(
+    colors: [Color(0xFF8B5CF6), Color(0xFF7C3AED)],
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+  );
+}
+
+// =========================================================
+// 2. KELAS UTAMA SCREEN
+// =========================================================
 class ScheduleScreen extends StatefulWidget {
   const ScheduleScreen({super.key});
 
@@ -16,7 +35,7 @@ class ScheduleScreen extends StatefulWidget {
   State<ScheduleScreen> createState() => _ScheduleScreenState();
 }
 
-class _ScheduleScreenState extends State<ScheduleScreen> {
+class _ScheduleScreenState extends State<ScheduleScreen> with WidgetsBindingObserver {
   List<ScheduleModel> allSchedules = [];
   bool _isLoading = true; 
   int _selectedTab = 0;
@@ -24,35 +43,44 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
   @override
   void initState() {
     super.initState();
-    NotificationService().init();
-    _refreshSchedules(); // Ganti nama biar lebih jelas
+    WidgetsBinding.instance.addObserver(this);
+    _refreshSchedules();
   }
 
-  // --- 1. LOAD DATA DARI SQLITE ---
-  
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      debugPrint("📱 Aplikasi kembali aktif, memuat ulang jadwal...");
+      _refreshSchedules(); 
+    }
+  }
+
+  // --- LOAD DATA ---
   Future<void> _refreshSchedules() async {
     setState(() => _isLoading = true);
-    
-    // Ambil data dari SQLite via DatabaseHelper
     try {
       allSchedules = await DatabaseHelper.instance.readAllSchedules();
-      debugPrint("📂 LOAD SQLITE: ${allSchedules.length} jadwal ditemukan.");
     } catch (e) {
       debugPrint("❌ ERROR LOAD DB: $e");
       allSchedules = [];
     }
-
     setState(() => _isLoading = false);
     
-    // Sinkronisasi Alarm dengan Data Database
-    await _rescheduleAllSystem();
+    // 1. Panggil Service untuk Update Sistem Background (Jaga-jaga)
+    // await NotificationService().rescheduleAllNotificationsBackground();
+    
+    // 2. Tampilkan Log Simulasi di Console (Hanya Visual Debug)
+    await _printScheduleLogSimulation();
   }
 
-  // --- 2. LOGIKA MATEMATIKA WAKTU (Tidak Berubah) ---
-
-  int _timeToMinutes(TimeOfDay time) {
-    return time.hour * 60 + time.minute;
-  }
+  // --- LOGIKA WAKTU ---
+  int _timeToMinutes(TimeOfDay time) => time.hour * 60 + time.minute;
 
   TimeOfDay _minutesToTime(int totalMinutes) {
     int normalizedMinutes = totalMinutes % 1440;
@@ -77,186 +105,147 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
     }
   }
 
-  // --- 3. LOGIKA NOTIFIKASI PINTAR (Tidak Berubah) ---
-  
-// Di dalam schedule_screen.dart
+  // ==========================================
+  // 3. LOGIKA PRINT LOG (VISUAL DEBUG DI UI)
+  // ==========================================
+  Future<void> _printScheduleLogSimulation() async {
+    final String timeCreated = DateTime.now().toString().substring(0, 19);
 
-  Future<void> _rescheduleAllSystem() async {
-    debugPrint("🔄 === MULAI RESCHEDULE SISTEM ===");
+    debugPrint("\n📊 [UI LOG] SIMULASI JADWAL AKTIF (FIXED WINDOW)");
+    debugPrint("📅 Waktu Cek: $timeCreated");
+    debugPrint("===================================================");
     
-    // 1. Cek apakah ada data
     if (allSchedules.isEmpty) {
-      debugPrint("⚠️ TIDAK ADA JADWAL DI DATABASE.");
+      debugPrint("⚠️ DATABASE KOSONG");
       return;
     }
 
-    // 2. Cancel notifikasi lama
-    await NotificationService().cancelAllNotifications();
-    debugPrint("🗑️ Notifikasi lama dihapus.");
-
+    final now = DateTime.now(); 
     int globalIdCounter = 0;
-    int successCount = 0;
 
-    // 3. Loop setiap jadwal
     for (var item in allSchedules) {
-      debugPrint("------------------------------------------------");
-      debugPrint("📋 Memproses Jadwal: ${item.title} (ID: ${item.id})");
-      debugPrint("   Status Aktif: ${item.isActive}");
-      debugPrint("   Hari: ${item.activeDays}");
-
-      // Cek Status Aktif
-      if (!item.isActive) {
-        debugPrint("   ⏭️ SKIP: Jadwal tidak aktif.");
-        continue;
-      }
-
-      // Cek Hari Kosong
-      if (item.activeDays.isEmpty) {
-        debugPrint("   ⚠️ SKIP: Hari belum dipilih (List Kosong).");
-        continue;
-      }
+      if (!item.isActive || item.activeDays.isEmpty) continue;
+      
+      debugPrint("\n📋 JADWAL: ${item.title.toUpperCase()} (Delay: ${item.delayMinutes} mnt)");
+      debugPrint("   ⏰ Window Asli: ${item.startTime} s/d ${item.endTime}");
 
       try {
-        int startMin = _timeToMinutes(_parseTime(item.startTime));
-        int endMin = _timeToMinutes(_parseTime(item.endTime));
-        if (endMin <= startMin) endMin += 1440;
+        int originalStartMin = _timeToMinutes(_parseTime(item.startTime));
+        int originalEndMin = _timeToMinutes(_parseTime(item.endTime));
+        
+        int fixedEndMin = originalEndMin;
+        if (fixedEndMin <= originalStartMin) fixedEndMin += 1440; 
 
         for (String dayName in item.activeDays) {
-          int dayOfWeek = _getDayInt(dayName);
-          int currentMin = startMin;
-          int cycleCount = 0;
+          int dayOfWeek = _getDayInt(dayName); 
+          
+          // Logic Hari Ini vs Besok (Sama seperti Service)
+          bool isToday = (dayOfWeek == now.weekday);
+          int effectiveStartMin = isToday ? originalStartMin + item.delayMinutes : originalStartMin;
 
-          debugPrint("   📅 Hari: $dayName (Int: $dayOfWeek) | Range: $startMin - $endMin");
-
-          while (currentMin < endMin && cycleCount < 20) {
-            // A. FASE FOKUS SELESAI -> JADWALKAN REHAT
-            currentMin += item.intervalDuration;
-            if (currentMin >= endMin) break;
-
-            TimeOfDay breakTime = _minutesToTime(currentMin);
-            
-            // LOG PENTING:
-            debugPrint("      🔔 Set Alarm REHAT jam: ${breakTime.format(context)} (ID: $globalIdCounter)");
-
-            await NotificationService().scheduleWeeklyNotification(
-              id: globalIdCounter++,
-              title: "Saatnya Rehat! ☕",
-              body: "Fokus ${item.intervalDuration}m selesai. Istirahat dulu!",
-              time: breakTime,
-              dayOfWeek: dayOfWeek,
-            );
-            successCount++;
-
-            // B. FASE REHAT SELESAI -> JADWALKAN KERJA
-            currentMin += item.breakDuration;
-            if (currentMin >= endMin) break;
-
-            TimeOfDay workTime = _minutesToTime(currentMin);
-            
-            // LOG PENTING:
-            debugPrint("      🚀 Set Alarm KERJA jam: ${workTime.format(context)} (ID: $globalIdCounter)");
-
-            await NotificationService().scheduleWeeklyNotification(
-              id: globalIdCounter++,
-              title: "Lanjut Fokus 🚀",
-              body: "Istirahat selesai. Gas lagi!",
-              time: workTime,
-              dayOfWeek: dayOfWeek,
-            );
-            successCount++;
-
-            cycleCount++;
+          if (effectiveStartMin >= fixedEndMin) {
+             debugPrint("   🛑 [SKIP] Delay terlalu lama pada hari $dayName");
+             continue; 
           }
+
+          int currentMin = effectiveStartMin;
+
+          // 1. OPENING
+          TimeOfDay startObj = _minutesToTime(effectiveStartMin);
+          debugPrint("   🎉 [Start] ${_calcNextLogDate(now, dayOfWeek, startObj)} ($dayName)");
+
+          while (currentMin < fixedEndMin) {
+            // REHAT
+            int rehatStart = currentMin + item.intervalDuration;
+            if (rehatStart >= fixedEndMin) break;
+
+            TimeOfDay rehatTime = _minutesToTime(rehatStart);
+            String logRehat = _calcNextLogDate(now, dayOfWeek, rehatTime);
+            debugPrint("   ☕ [Rehat] $logRehat ($dayName)");
+            
+            currentMin = rehatStart;
+
+            // FOKUS
+            int fokusStart = currentMin + item.breakDuration;
+            if (fokusStart >= fixedEndMin) break;
+
+            TimeOfDay fokusTime = _minutesToTime(fokusStart);
+            String logFokus = _calcNextLogDate(now, dayOfWeek, fokusTime);
+            debugPrint("   🚀 [Fokus] $logFokus ($dayName)");
+
+            currentMin = fokusStart;
+          }
+
+          // CLOSING
+          TimeOfDay endObj = _minutesToTime(fixedEndMin);
+          debugPrint("   🏁 [End]   ${_calcNextLogDate(now, dayOfWeek, endObj)} ($dayName)");
         }
       } catch (e) {
-        debugPrint("❌ ERROR pada jadwal ini: $e");
+        debugPrint("❌ ERROR Log: $e");
       }
     }
-    
-    debugPrint("✅ SELESAI. Total $successCount alarm berhasil dijadwalkan.");
-    debugPrint("================================================");
+    debugPrint("===================================================");
   }
-  // --- 4. NAVIGASI CRUD (UPDATED KE SQLITE) ---
+  
+  String _calcNextLogDate(DateTime now, int targetDay, TimeOfDay targetTime) {
+    int daysToAdd = (targetDay - now.weekday + 7) % 7;
+    DateTime tentativeDate = now.add(Duration(days: daysToAdd));
+    
+    DateTime result = DateTime(
+      tentativeDate.year, tentativeDate.month, tentativeDate.day, 
+      targetTime.hour, targetTime.minute
+    );
 
+    if (result.isBefore(now)) result = result.add(const Duration(days: 7));
+    return result.toString().substring(0, 16);
+  }
+
+  // --- NAVIGASI ---
   void _navigateToAdd() async {
     final result = await Navigator.push(context, MaterialPageRoute(builder: (_) => const CreateScheduleScreen()));
-    
-    if (result != null && result is ScheduleModel) {
-      // 1. Simpan ke SQLite
+    if (result != null) {
       await DatabaseHelper.instance.create(result);
-      
-      // 2. Refresh List & Alarm
-      await _refreshSchedules(); 
-      
-      if (!mounted) return;
-      _showSnack("Jadwal ditambahkan & alarm diatur");
+      // Panggil Service untuk jadwalkan ulang background
+      await NotificationService().rescheduleAllNotificationsBackground();
+      _refreshSchedules();
     }
   }
 
   void _navigateToEdit(ScheduleModel item) async {
     final result = await Navigator.push(context, MaterialPageRoute(builder: (_) => CreateScheduleScreen(scheduleToEdit: item)));
-    
-    if (result != null && result is ScheduleModel) {
-      // 1. Update ke SQLite
+    if (result != null) {
       await DatabaseHelper.instance.update(result);
-      
-      // 2. Refresh List & Alarm
-      await _refreshSchedules();
-
-      if (!mounted) return;
-      _showSnack("Jadwal diperbarui");
+      await NotificationService().rescheduleAllNotificationsBackground();
+      _refreshSchedules();
     }
   }
 
   void _deleteSchedule(String id) async {
-    final int baseId = id.hashCode.abs();
-    // Cancel notifikasi range aman (logic lama)
-    for (int i = 0; i < 100; i++) {
-      NotificationService().cancelNotification(baseId + i);
-    }
-
-    // Hapus dari Database
     await DatabaseHelper.instance.delete(id);
-    
-    // Refresh UI
-    await _refreshSchedules();
-    _showSnack("Jadwal dihapus");
+    await NotificationService().rescheduleAllNotificationsBackground();
+    _refreshSchedules();
   }
 
   void _toggleStatus(String id, bool value) async {
     final index = allSchedules.indexWhere((item) => item.id == id);
-    
     if (index != -1) {
-      final schedule = allSchedules[index];
-      schedule.isActive = value; // Update object di memori sementara
-      
-      // Update di Database
+      var schedule = allSchedules[index];
+      schedule.isActive = value;
       await DatabaseHelper.instance.update(schedule);
-
-      String namaJadwal = schedule.title;
-      debugPrint("👉 SWITCH: $namaJadwal jadi $value");
-
-      if (value == true) {
-        await NotificationService().showNotification(
-          "Pengingat Aktif", 
-          "Jadwal '$namaJadwal' berhasil diaktifkan!"
+      await NotificationService().rescheduleAllNotificationsBackground();
+      await _refreshSchedules(); 
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(value ? "Jadwal Aktif" : "Jadwal Nonaktif"),
+            duration: const Duration(seconds: 1),
+            behavior: SnackBarBehavior.floating,
+          ),
         );
       }
-
-      // Refresh sistem alarm
-      await _refreshSchedules();
-      
-      if (!mounted) return;
-      _showSnack(value ? "Pengingat diaktifkan" : "Pengingat dimatikan");
     }
-  }   
-  
-  void _showSnack(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), duration: const Duration(seconds: 1)));
   }
-
-
-  // --- 5. UI BUILD (Tidak Berubah) ---
 
   List<ScheduleModel> get filteredSchedules {
     if (_selectedTab == 1) return allSchedules.where((s) => s.isActive).toList();
@@ -264,37 +253,42 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
     return allSchedules;
   }
 
-  int get totalCount => allSchedules.length;
-  int get activeCount => allSchedules.where((s) => s.isActive).length;
-  int get inactiveCount => allSchedules.where((s) => !s.isActive).length;
-
+  // ==========================================
+  // UI BUILD
+  // ==========================================
   @override
   Widget build(BuildContext context) {
     if (_isLoading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
 
+    final double screenHeight = MediaQuery.of(context).size.height;
+    final double headerHeight = screenHeight * 0.32; 
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FD),
+      backgroundColor: ScheduleTheme.backgroundLight,
       body: Stack(
         children: [
           Container(
-            height: 280, width: double.infinity,
+            height: headerHeight,
+            width: double.infinity,
             decoration: const BoxDecoration(
-              gradient: AppTheme.primaryGradient,
+              gradient: ScheduleTheme.primaryGradient,
               borderRadius: BorderRadius.only(bottomLeft: Radius.circular(30), bottomRight: Radius.circular(30)),
+              boxShadow: [BoxShadow(color: Color(0x306B4EFF), blurRadius: 20, offset: Offset(0, 10))],
             ),
           ),
+          
           SafeArea(
             child: Column(
               children: [
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 20, 24, 20),
+                  padding: const EdgeInsets.fromLTRB(24, 10, 24, 16),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text("Jadwal Rehat", style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 8),
-                      const Text("Kelola jadwal istirahat otomatis Anda", style: TextStyle(color: Colors.white70, fontSize: 14)),
-                      const SizedBox(height: 24),
+                      const SizedBox(height: 6),
+                      Text("Kelola rutinitas produktif Anda", style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 14)),
+                      const SizedBox(height: 20),
                       _buildStatCard(),
                       const SizedBox(height: 16),
                       _buildTabs(),
@@ -306,6 +300,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                   child: filteredSchedules.isEmpty
                       ? _buildEmptyState()
                       : ListView.builder(
+                          physics: const BouncingScrollPhysics(),
                           padding: const EdgeInsets.fromLTRB(24, 0, 24, 100),
                           itemCount: filteredSchedules.length,
                           itemBuilder: (context, index) => _buildScheduleCard(filteredSchedules[index]),
@@ -316,18 +311,14 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
           ),
         ],
       ),
-      floatingActionButton: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
       
-          const SizedBox(height: 12),
-          FloatingActionButton(
-            heroTag: "addSchedule",
-            onPressed: _navigateToAdd,
-            backgroundColor: AppTheme.primaryColor,
-            child: const Icon(Icons.add, color: Colors.white, size: 28),
-          ),
-        ],
+      floatingActionButton: FloatingActionButton(
+        heroTag: "addSchedule_${DateTime.now().millisecondsSinceEpoch}",
+        onPressed: _navigateToAdd,
+        backgroundColor: ScheduleTheme.primaryPurple,
+        elevation: 4,
+        shape: const CircleBorder(),
+        child: const Icon(Icons.add, color: Colors.white, size: 28),
       ),
     );
   }
@@ -336,15 +327,15 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
   Widget _buildStatCard() {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 20, offset: const Offset(0, 10))]),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          _StatItem(count: totalCount.toString(), label: "Total", color: Colors.black87),
-          Container(width: 1, height: 40, color: Colors.grey[200]),
-          _StatItem(count: activeCount.toString(), label: "Aktif", color: Colors.green),
-          Container(width: 1, height: 40, color: Colors.grey[200]),
-          _StatItem(count: inactiveCount.toString(), label: "Nonaktif", color: Colors.grey),
+          Expanded(child: _StatItem(count: allSchedules.length.toString(), label: "Total", color: ScheduleTheme.primaryPurple)),
+          Container(width: 1, height: 30, color: Colors.grey[200]),
+          Expanded(child: _StatItem(count: allSchedules.where((s) => s.isActive).length.toString(), label: "Aktif", color: ScheduleTheme.accentBlue)),
+          Container(width: 1, height: 30, color: Colors.grey[200]),
+          Expanded(child: _StatItem(count: allSchedules.where((s) => !s.isActive).length.toString(), label: "Nonaktif", color: ScheduleTheme.textGrey)),
         ],
       ),
     );
@@ -353,57 +344,107 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
   Widget _buildTabs() {
     return Container(
       padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.white.withOpacity(0.3))),
-      child: Row(children: [_TabButton(text: "Semua", isActive: _selectedTab == 0, onTap: () => setState(() => _selectedTab = 0)), _TabButton(text: "Aktif", isActive: _selectedTab == 1, onTap: () => setState(() => _selectedTab = 1)), _TabButton(text: "Nonaktif", isActive: _selectedTab == 2, onTap: () => setState(() => _selectedTab = 2))]),
+      decoration: BoxDecoration(color: Colors.grey.withOpacity(0.15), borderRadius: BorderRadius.circular(16)),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          _TabButton(text: "Semua", isActive: _selectedTab == 0, onTap: () => setState(() => _selectedTab = 0)), 
+          _TabButton(text: "Aktif", isActive: _selectedTab == 1, onTap: () => setState(() => _selectedTab = 1)), 
+          _TabButton(text: "Nonaktif", isActive: _selectedTab == 2, onTap: () => setState(() => _selectedTab = 2))
+        ]
+      ),
     );
   }
 
   Widget _buildScheduleCard(ScheduleModel item) {
+
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.05), blurRadius: 15, offset: const Offset(0, 5))],
-        border: Border.all(color: item.isActive ? AppTheme.primaryColor.withOpacity(0.1) : Colors.transparent, width: 1.5),
+        border: Border.all(
+          color: item.isActive ? ScheduleTheme.primaryPurple.withOpacity(0.2) : Colors.transparent, 
+          width: 1.5),
       ),
       child: Column(
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(item.title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF2D3142))),
-                  const SizedBox(height: 6),
-                  Row(children: [const Icon(Icons.access_time_rounded, size: 14, color: Colors.grey), const SizedBox(width: 4), Text("${item.startTime} - ${item.endTime}", style: const TextStyle(color: Colors.grey, fontSize: 13))]),
-                ],
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(item.title, // Tambah info delay di judul (opsional)
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis, 
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: ScheduleTheme.textDark)),
+                    const SizedBox(height: 6),
+                    Row(children: [
+                      const Icon(Icons.access_time_rounded, size: 14, color: ScheduleTheme.textGrey), 
+                      const SizedBox(width: 4), 
+                      Text("${item.startTime} - ${item.endTime}", style: const TextStyle(color: ScheduleTheme.textGrey, fontSize: 13))
+                    ]),
+                  ],
+                ),
               ),
-              Switch.adaptive(value: item.isActive, activeColor: AppTheme.primaryColor, onChanged: (val) => _toggleStatus(item.id, val)),
+              Switch.adaptive(value: item.isActive, activeColor: ScheduleTheme.primaryPurple, onChanged: (val) => _toggleStatus(item.id, val)),
             ],
           ),
           const SizedBox(height: 12),
-          Row(children: item.activeDays.map((day) => Container(margin: const EdgeInsets.only(right: 6), padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6), decoration: BoxDecoration(color: item.isActive ? const Color(0xFF6B4EFF).withOpacity(0.08) : Colors.grey[100], borderRadius: BorderRadius.circular(8)), child: Text(day, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: item.isActive ? AppTheme.primaryColor : Colors.grey)))).toList()),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Wrap(
+              spacing: 6, runSpacing: 6,
+              children: item.activeDays.map((day) => Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6), 
+                decoration: BoxDecoration(color: item.isActive ? ScheduleTheme.primaryPurple.withOpacity(0.1) : Colors.grey[100], borderRadius: BorderRadius.circular(8)), 
+                child: Text(day, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: item.isActive ? ScheduleTheme.primaryPurple : ScheduleTheme.textGrey))
+              )).toList(),
+            ),
+          ),
           Padding(padding: const EdgeInsets.symmetric(vertical: 16), child: Divider(height: 1, color: Colors.grey[100])),
-          Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [_DetailStat("${item.totalDuration}m", "Total"), _DetailStat("${item.intervalDuration}m", "Interval"), _DetailStat("${item.breakDuration}m", "Rehat")]),
+          Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
+            _DetailStat("${item.totalDuration}m", "Total"), 
+            _DetailStat("${item.intervalDuration}m", "Interval"), 
+            _DetailStat("${item.breakDuration}m", "Rehat")
+          ]),
           const SizedBox(height: 16),
-          Row(children: [
-            Expanded(child: OutlinedButton.icon(onPressed: () => _navigateToEdit(item), icon: const Icon(Icons.edit_rounded, size: 16), label: const Text("Edit"), style: OutlinedButton.styleFrom(foregroundColor: Colors.grey[700], side: BorderSide(color: Colors.grey[300]!), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), padding: const EdgeInsets.symmetric(vertical: 12)))),
-            const SizedBox(width: 12),
-            Expanded(child: OutlinedButton.icon(onPressed: () => _deleteSchedule(item.id), icon: const Icon(Icons.delete_rounded, size: 16), label: const Text("Hapus"), style: OutlinedButton.styleFrom(foregroundColor: Colors.red[400], side: BorderSide(color: Colors.red[100]!), backgroundColor: Colors.red[50], shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), padding: const EdgeInsets.symmetric(vertical: 12)))),
-          ])
+          Row(
+            children: [
+              Expanded(child: OutlinedButton.icon(onPressed: () => _navigateToEdit(item), icon: const Icon(Icons.edit_rounded, size: 16), label: const Text("Edit"), style: OutlinedButton.styleFrom(foregroundColor: ScheduleTheme.primaryPurple, side: BorderSide(color: ScheduleTheme.primaryPurple.withOpacity(0.3)), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), padding: const EdgeInsets.symmetric(vertical: 12)))),
+              const SizedBox(width: 12),
+              Expanded(child: OutlinedButton.icon(onPressed: () => _deleteSchedule(item.id), icon: const Icon(Icons.delete_rounded, size: 16), label: const Text("Hapus"), style: OutlinedButton.styleFrom(foregroundColor: Colors.red[400], side: BorderSide(color: Colors.red.withOpacity(0.2)), backgroundColor: Colors.red.withOpacity(0.05), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), padding: const EdgeInsets.symmetric(vertical: 12)))),
+            ]
+          )
         ],
       ),
     );
   }
 
-  Widget _buildEmptyState() {
-    return Center(child: Column(children: [const SizedBox(height: 40), Icon(Icons.calendar_today_rounded, size: 60, color: Colors.grey[300]), const SizedBox(height: 16), Text("Tidak ada jadwal ditemukan", style: TextStyle(color: Colors.grey[400]))]));
-  }
+  Widget _buildEmptyState() => const Center(child: Text("Tidak ada jadwal ditemukan", style: TextStyle(color: Colors.grey)));
 }
 
-class _StatItem extends StatelessWidget { final String count, label; final Color color; const _StatItem({required this.count, required this.label, required this.color}); @override Widget build(BuildContext context) => Column(children: [Text(count, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: color)), const SizedBox(height: 4), Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey))]); }
-class _DetailStat extends StatelessWidget { final String val, label; const _DetailStat(this.val, this.label); @override Widget build(BuildContext context) => Column(children: [Text(val, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF2D3142))), Text(label, style: TextStyle(fontSize: 11, color: Colors.grey[500]))]); }
-class _TabButton extends StatelessWidget { final String text; final bool isActive; final VoidCallback onTap; const _TabButton({required this.text, required this.isActive, required this.onTap}); @override Widget build(BuildContext context) { return Expanded(child: GestureDetector(onTap: onTap, child: AnimatedContainer(duration: const Duration(milliseconds: 200), padding: const EdgeInsets.symmetric(vertical: 10), decoration: BoxDecoration(color: isActive ? Colors.white : Colors.white.withOpacity(0.2), borderRadius: BorderRadius.circular(12)), child: Center(child: Text(text, style: TextStyle(color: isActive ? AppTheme.primaryColor : Colors.white70, fontWeight: FontWeight.bold, fontSize: 13)))))); } }
+class _StatItem extends StatelessWidget { 
+  final String count, label; 
+  final Color color; 
+  const _StatItem({required this.count, required this.label, required this.color}); 
+  @override 
+  Widget build(BuildContext context) => Column(children: [FittedBox(child: Text(count, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: color))), const SizedBox(height: 4), Text(label, style: const TextStyle(fontSize: 12, color: ScheduleTheme.textGrey))]); 
+}
+
+class _DetailStat extends StatelessWidget { 
+  final String val, label; 
+  const _DetailStat(this.val, this.label); 
+  @override 
+  Widget build(BuildContext context) => Column(children: [Text(val, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: ScheduleTheme.textDark)), Text(label, style: const TextStyle(fontSize: 11, color: ScheduleTheme.textGrey))]); 
+}
+
+class _TabButton extends StatelessWidget {
+  final String text; final bool isActive; final VoidCallback onTap;
+  const _TabButton({required this.text, required this.isActive, required this.onTap});
+  @override
+  Widget build(BuildContext context) => Expanded(child: GestureDetector(onTap: onTap, child: AnimatedContainer(duration: const Duration(milliseconds: 200), padding: const EdgeInsets.symmetric(vertical: 10), decoration: BoxDecoration(color: isActive ? Colors.white : Colors.transparent, borderRadius: BorderRadius.circular(30), boxShadow: isActive ? [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 4))] : []), child: Center(child: Text(text, style: TextStyle(color: isActive ? ScheduleTheme.primaryPurple : Colors.black54, fontWeight: FontWeight.bold, fontSize: 13))))));
+}

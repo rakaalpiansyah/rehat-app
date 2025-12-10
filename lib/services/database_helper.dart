@@ -1,3 +1,4 @@
+// File: lib/services/database_helper.dart
 import 'dart:async';
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
@@ -11,7 +12,7 @@ class DatabaseHelper {
 
   Future<Database> get database async {
     if (_database != null) return _database!;
-    _database = await _initDB('rehat_schedule.db');
+    _database = await _initDB('rehat_schedule_v2.db');
     return _database!;
   }
 
@@ -23,10 +24,9 @@ class DatabaseHelper {
   }
 
   Future _createDB(Database db, int version) async {
-    // Tipe data SQLite
     const idType = 'TEXT PRIMARY KEY';
     const textType = 'TEXT NOT NULL';
-    const boolType = 'INTEGER NOT NULL'; // 0 atau 1
+    const boolType = 'INTEGER NOT NULL';
     const intType = 'INTEGER NOT NULL';
 
     await db.execute('''
@@ -39,28 +39,44 @@ class DatabaseHelper {
         isActive $boolType,
         totalDuration $intType,
         intervalDuration $intType,
-        breakDuration $intType
+        breakDuration $intType,
+        delayMinutes $intType DEFAULT 0  -- ✅ KOLOM BARU
       )
     ''');
   }
 
   // --- CRUD OPERATIONS ---
 
-  // 1. CREATE (Tambah Jadwal)
+  // 1. CREATE
   Future<int> create(ScheduleModel schedule) async {
     final db = await instance.database;
     return await db.insert('schedules', schedule.toMap());
   }
 
-  // 2. READ ALL (Ambil Semua Jadwal)
+  // 2. READ ALL
   Future<List<ScheduleModel>> readAllSchedules() async {
     final db = await instance.database;
     final result = await db.query('schedules');
-
     return result.map((json) => ScheduleModel.fromMap(json)).toList();
   }
 
-  // 3. UPDATE (Edit Jadwal)
+  // ✅ 3. READ ONE (BARU: Untuk update saat Snooze)
+  Future<ScheduleModel?> readSchedule(String id) async {
+    final db = await instance.database;
+    final maps = await db.query(
+      'schedules',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+
+    if (maps.isNotEmpty) {
+      return ScheduleModel.fromMap(maps.first);
+    } else {
+      return null;
+    }
+  }
+
+  // 4. UPDATE
   Future<int> update(ScheduleModel schedule) async {
     final db = await instance.database;
     return await db.update(
@@ -71,7 +87,7 @@ class DatabaseHelper {
     );
   }
 
-  // 4. DELETE (Hapus Jadwal)
+  // 5. DELETE
   Future<int> delete(String id) async {
     final db = await instance.database;
     return await db.delete(
@@ -81,7 +97,6 @@ class DatabaseHelper {
     );
   }
 
-  // Close Database (Opsional)
   Future close() async {
     final db = await instance.database;
     db.close();

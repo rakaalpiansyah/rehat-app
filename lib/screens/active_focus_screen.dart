@@ -1,11 +1,9 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:percent_indicator/circular_percent_indicator.dart';
-import '../services/notification_service.dart'; // Pastikan path benar
-// import '../core/theme.dart'; 
+import '../services/active_focus_notification_service.dart';
 
 class ActiveFocusScreen extends StatefulWidget {
-  // Data ini didapat dari Slider di Home Screen
   final int totalMinutes;
   final int intervalMinutes;
   final int breakMinutes;
@@ -21,10 +19,8 @@ class ActiveFocusScreen extends StatefulWidget {
   State<ActiveFocusScreen> createState() => _ActiveFocusScreenState();
 }
 
-class _ActiveFocusScreenState extends State<ActiveFocusScreen> {
+class _ActiveFocusScreenState extends State<ActiveFocusScreen> with WidgetsBindingObserver {
   Timer? _timer;
-
-  // Variabel Hitung Mundur
   late int _remainingTotalSeconds;    
   late int _remainingIntervalSeconds; 
   late int _remainingBreakSeconds;    
@@ -33,41 +29,55 @@ class _ActiveFocusScreenState extends State<ActiveFocusScreen> {
   bool _isPaused = false;
   bool _isBreakTime = false; 
 
+  // Instance Service (Versi Sederhana)
+  final ActiveFocusNotificationService _focusNotificationService = ActiveFocusNotificationService();
+  
+  // ❌ StreamSubscription Dihapus karena tidak ada tombol untuk didengar
+
   @override
   void initState() {
     super.initState();
-    // Konversi Menit ke Detik
+    WidgetsBinding.instance.addObserver(this);
+
     _totalSecondsInitial = widget.totalMinutes * 60;
     _remainingTotalSeconds = _totalSecondsInitial;
-    
     _remainingIntervalSeconds = widget.intervalMinutes * 60;
     _remainingBreakSeconds = widget.breakMinutes * 60;
+
+    // ❌ _initNotificationListener() Dihapus
 
     _startTimer();
   }
 
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _timer?.cancel();
+    // ❌ _notificationSubscription?.cancel() Dihapus
+    super.dispose();
+  }
+
+  // ❌ _handleSnooze dan _handleDismiss Dihapus total
+
   void _startTimer() {
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (_isPaused) return;
+      if (!mounted) return;
 
       setState(() {
         if (_isBreakTime) {
-          // --- LOGIKA SAAT ISTIRAHAT ---
           if (_remainingBreakSeconds > 0) {
             _remainingBreakSeconds--;
           } else {
-            _endBreak(); // Balik Kerja
+            _endBreak(); 
           }
         } else {
-          // --- LOGIKA SAAT FOKUS ---
           if (_remainingTotalSeconds > 0) {
             _remainingTotalSeconds--;
             _remainingIntervalSeconds--;
           } else {
-            _finishSession(); // Selesai Total
+            _finishSession(); 
           }
-
-          // Cek apakah interval habis?
           if (_remainingIntervalSeconds <= 0 && _remainingTotalSeconds > 0) {
             _startBreak();
           }
@@ -75,42 +85,54 @@ class _ActiveFocusScreenState extends State<ActiveFocusScreen> {
       });
     });
   }
-
-  // 1. Masuk Mode Istirahat
+  
   void _startBreak() {
     setState(() {
       _isBreakTime = true;
-      _remainingBreakSeconds = widget.breakMinutes * 60; // Reset waktu rehat
+      _remainingBreakSeconds = widget.breakMinutes * 60; 
     });
-
-    // Panggil Notifikasi INSTANT (Metode 1 di Service)
-    NotificationService().showNotification(
+    // Panggil notifikasi tanpa parameter nextDuration
+    _focusNotificationService.showInstantFocusNotification(
       "Saatnya Rehat! ☕", 
-      "Anda sudah fokus selama ${widget.intervalMinutes} menit. Istirahat sejenak."
+      "Fokus ${widget.intervalMinutes} menit selesai. Istirahat dulu!",
     );
   }
 
-  // 2. Selesai Istirahat
   void _endBreak() {
     setState(() {
       _isBreakTime = false;
-      _remainingIntervalSeconds = widget.intervalMinutes * 60; // Reset waktu fokus
+      _remainingIntervalSeconds = widget.intervalMinutes * 60; 
     });
-
-    NotificationService().showNotification(
+    _focusNotificationService.showInstantFocusNotification(
       "Istirahat Selesai 🚀", 
-      "Energi sudah terisi? Mari lanjut fokus!"
+      "Energi terisi? Mari lanjut fokus!",
     );
   }
 
-  // 3. Sesi Habis Total
   void _finishSession() {
     _timer?.cancel();
-    NotificationService().showNotification(
+    _focusNotificationService.showInstantFocusNotification(
       "Sesi Selesai! 🎉", 
-      "Target ${widget.totalMinutes} menit tercapai. Kerja bagus!"
+      "Target ${widget.totalMinutes} menit tercapai. Kerja bagus!",
+    ); 
+    
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text("Sesi Selesai"),
+        content: const Text("Selamat! Anda telah menyelesaikan target fokus hari ini."),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context); 
+              Navigator.pop(context); 
+            },
+            child: const Text("Mantap"),
+          )
+        ],
+      ),
     );
-    Navigator.pop(context); 
   }
 
   String _formatTime(int totalSeconds) {
@@ -118,37 +140,30 @@ class _ActiveFocusScreenState extends State<ActiveFocusScreen> {
     int seconds = totalSeconds % 60;
     return "${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}";
   }
-
-  @override
-  void dispose() {
-    _timer?.cancel();
-    super.dispose();
-  }
-
+  
   @override
   Widget build(BuildContext context) {
-    final Color primaryColor = _isBreakTime ? Colors.green : const Color(0xFF6B4EFF);
-    final Color secondaryColor = _isBreakTime ? Colors.green.shade50 : const Color(0xFFE0E0E0);
-    final String statusText = _isBreakTime ? "Mode Istirahat Aktif" : "Mode Fokus Aktif";
-
-    double percent = 1.0 - (_remainingTotalSeconds / _totalSecondsInitial);
+    final Color primaryColor = _isBreakTime ? Colors.green : const Color(0xFF8B5CF6);
+    final Color secondaryColor = _isBreakTime ? Colors.green.shade50 : const Color(0xFFF3F0FF);
+    final String statusText = _isBreakTime ? "Mode Istirahat" : "Mode Fokus";
+    double percent = 0.0;
+    if (_totalSecondsInitial > 0) {
+      percent = 1.0 - (_remainingTotalSeconds / _totalSecondsInitial);
+    }
     percent = percent.clamp(0.0, 1.0);
 
     return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        leading: BackButton(color: Colors.black, onPressed: () {
-          _timer?.cancel();
-          Navigator.pop(context);
-        }),
-        title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Text("Sesi Aktif", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 16)),
-            Text(statusText, style: TextStyle(color: primaryColor, fontSize: 12, fontWeight: FontWeight.bold)),
-        ]),
-        backgroundColor: Colors.white,
-        elevation: 0,
-      ),
-      body: Padding(
+       backgroundColor: Colors.white,
+       appBar: AppBar(
+         leading: BackButton(color: Colors.black, onPressed: () { _showExitConfirmation(); }),
+         title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+             const Text("Sesi Aktif", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 16)),
+             Text(statusText, style: TextStyle(color: primaryColor, fontSize: 12, fontWeight: FontWeight.bold)),
+         ]),
+         backgroundColor: Colors.white,
+         elevation: 0,
+       ),
+       body: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 24),
         child: Column(
           children: [
@@ -160,17 +175,17 @@ class _ActiveFocusScreenState extends State<ActiveFocusScreen> {
               center: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(_isBreakTime ? Icons.spa : Icons.access_time, color: primaryColor, size: 32),
+                  Icon(_isBreakTime ? Icons.coffee_rounded : Icons.bolt_rounded, color: primaryColor, size: 32),
                   const SizedBox(height: 8),
                   Text(
                     _isBreakTime 
-                        ? _formatTime(_remainingBreakSeconds) 
+                        ? _formatTime(_remainingBreakSeconds)
                         : _formatTime(_remainingTotalSeconds),
                     style: TextStyle(fontSize: 40, fontWeight: FontWeight.bold, color: primaryColor),
                   ),
                   Text(
-                    _isBreakTime ? "Sisa Waktu Rehat" : "Sisa Waktu Total",
-                    style: const TextStyle(color: Colors.grey),
+                    _isBreakTime ? "Waktu Rehat" : "Total Tersisa",
+                    style: const TextStyle(color: Colors.grey, fontSize: 14),
                   ),
                 ],
               ),
@@ -181,26 +196,25 @@ class _ActiveFocusScreenState extends State<ActiveFocusScreen> {
               animateFromLastPercent: true,
             ),
             const Spacer(),
-            
-            // Kartu Info
+            // Kartu Info Detail
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
                 color: Colors.white, 
                 borderRadius: BorderRadius.circular(20), 
-                boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10, offset: const Offset(0,5))]
+                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 20, offset: const Offset(0,10))]
               ),
               child: Row(
                 children: [
                   Container(
-                    padding: const EdgeInsets.all(10), 
+                    padding: const EdgeInsets.all(12), 
                     decoration: BoxDecoration(
-                      color: _isBreakTime ? Colors.green[50] : Colors.pink[50], 
+                      color: secondaryColor, 
                       borderRadius: BorderRadius.circular(12)
                     ), 
                     child: Icon(
-                      _isBreakTime ? Icons.check_circle : Icons.timer_outlined, 
-                      color: _isBreakTime ? Colors.green : Colors.pinkAccent
+                      _isBreakTime ? Icons.timer_outlined : Icons.hourglass_bottom_rounded, 
+                      color: primaryColor
                     ),
                   ),
                   const SizedBox(width: 15),
@@ -209,32 +223,22 @@ class _ActiveFocusScreenState extends State<ActiveFocusScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start, 
                       children: [
                         Text(
-                          _isBreakTime ? "Kembali Fokus Dalam" : "Istirahat Berikutnya", 
-                          style: const TextStyle(fontWeight: FontWeight.bold)
+                          _isBreakTime ? "Lanjut Fokus Dalam" : "Rehat Berikutnya", 
+                          style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87)
                         ), 
                         Text(
-                          _isBreakTime ? "Istirahatlah sejenak" : "Pengingat akan muncul", 
+                          _isBreakTime 
+                            ? "${_formatTime(_remainingBreakSeconds)} lagi"
+                            : "${_formatTime(_remainingIntervalSeconds)} lagi", 
                           style: const TextStyle(fontSize: 12, color: Colors.grey)
                         )
                       ]
                     )
                   ),
-                  Text(
-                    _isBreakTime 
-                        ? _formatTime(_remainingBreakSeconds) 
-                        : _formatTime(_remainingIntervalSeconds),
-                    style: TextStyle(
-                      color: _isBreakTime ? Colors.green : Colors.pinkAccent, 
-                      fontWeight: FontWeight.bold, 
-                      fontSize: 18
-                    )
-                  ),
                 ],
               ),
             ),
-
             const SizedBox(height: 40),
-
             // Tombol Kontrol
             Row(children: [
                 Expanded(child: ElevatedButton(
@@ -243,35 +247,47 @@ class _ActiveFocusScreenState extends State<ActiveFocusScreen> {
                     backgroundColor: Colors.white, 
                     foregroundColor: Colors.black, 
                     elevation: 0, 
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15), side: const BorderSide(color: Colors.grey))
+                    side: const BorderSide(color: Colors.grey),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                    padding: const EdgeInsets.symmetric(vertical: 16)
                   ), 
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 16), 
-                    child: Text(_isPaused ? "Lanjutkan" : "Jeda")
-                  )
+                  child: Text(_isPaused ? "Lanjutkan" : "Jeda", style: const TextStyle(fontWeight: FontWeight.bold))
                 )),
                 const SizedBox(width: 16),
                 Expanded(child: ElevatedButton(
-                  onPressed: () {
-                    _timer?.cancel();
-                    Navigator.pop(context);
-                  }, 
+                  onPressed: _showExitConfirmation,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.redAccent, 
-                    foregroundColor: Colors.white, 
+                    backgroundColor: const Color(0xFFFFE4E6), 
+                    foregroundColor: Colors.red, 
                     elevation: 0, 
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                    padding: const EdgeInsets.symmetric(vertical: 16)
                   ), 
-                  child: const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 16), 
-                    child: Text("Hentikan")
-                  )
+                  child: const Text("Hentikan", style: TextStyle(fontWeight: FontWeight.bold))
                 )),
             ]),
             const SizedBox(height: 30),
           ],
         ),
       ),
+    );
+  }
+
+  void _showExitConfirmation() {
+    showDialog(
+      context: context, 
+      builder: (ctx) => AlertDialog(
+        title: const Text("Hentikan Sesi?"),
+        content: const Text("Progres sesi ini akan hilang."),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Batal", style: TextStyle(color: Colors.grey))),
+          TextButton(onPressed: () {
+            Navigator.pop(ctx);
+            _timer?.cancel();
+            Navigator.pop(context);
+          }, child: const Text("Ya, Hentikan", style: TextStyle(color: Colors.red))),
+        ],
+      )
     );
   }
 }

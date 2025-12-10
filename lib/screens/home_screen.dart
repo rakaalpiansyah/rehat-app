@@ -1,7 +1,5 @@
 // File: lib/screens/home_screen.dart
 import 'package:flutter/material.dart';
-// import 'package:intl/intl.dart'; // Pastikan package intl sudah ada
-import '../core/theme.dart';
 import 'active_focus_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -17,104 +15,161 @@ class _HomeScreenState extends State<HomeScreen> {
   double intervalFocus = 50;
   double breakDuration = 9;
 
-  // Helper untuk mendapatkan sapaan waktu
-  String get greeting {
-    var hour = DateTime.now().hour;
-    if (hour < 12) return 'Selamat Pagi,';
-    if (hour < 17) return 'Selamat Siang,';
-    return 'Selamat Malam,';
-  }
-
-  @override
+@override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FD), // Background lebih bersih
-      body: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildModernHeader(),
-            const SizedBox(height: 20),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
+      backgroundColor: const Color(0xFFF8F9FD),
+      body: Column(
+        children: [
+          // 1. HEADER (Tetap Tinggi 260)
+          _buildHeaderSection(),
+
+          // 2. CONTENT SECTION (Dibuat Fleksibel)
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24.0),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    "Konfigurasi Sesi",
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF2D3142),
+                  const SizedBox(height: 16),
+                  
+                  // BAGIAN YANG BISA DI-SCROLL
+                  // Kita bungkus konten kartu dengan Expanded + SingleChildScrollView
+                  // Agar jika layar pendek, user bisa scroll ke bawah.
+                  Expanded(
+                    child: SingleChildScrollView(
+                      // BouncingScrollPhysics memberi efek pantul (bagus di iOS/Android modern)
+                      physics: const BouncingScrollPhysics(), 
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            "Konfigurasi Sesi",
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF2D3142),
+                            ),
+                          ),
+
+                          const SizedBox(height: 14),
+
+                          // Kartu 1
+                          _ConfigCard(
+                            icon: Icons.timelapse_rounded,
+                            title: "Total Sesi",
+                            subtitle: "Durasi kerja total",
+                            value: totalFocus,
+                            min: 30,
+                            max: 180,
+                            unit: "m",
+                            primaryColor: const Color(0xFF7F56D9),
+                            lightColor: const Color(0xFFF4EBFF),
+                            onChanged: (v) => setState(() => totalFocus = v),
+                          ),
+
+                          const SizedBox(height: 14),
+
+                          // Kartu 2
+                          _ConfigCard(
+                            icon: Icons.timer_outlined,
+                            title: "Interval Fokus",
+                            subtitle: "Waktu fokus",
+                            value: intervalFocus,
+                            min: 1,
+                            max: 60,
+                            unit: "m",
+                            primaryColor: const Color(0xFF2E90FA),
+                            lightColor: const Color(0xFFEFF8FF),
+                            onChanged: (v) => setState(() => intervalFocus = v),
+                          ),
+
+                          const SizedBox(height: 14),
+
+                          // Kartu 3
+                          _ConfigCard(
+                            icon: Icons.coffee_outlined,
+                            title: "Istirahat",
+                            subtitle: "Waktu rehat",
+                            value: breakDuration,
+                            min: 1,
+                            max: 15,
+                            unit: "m",
+                            primaryColor: const Color(0xFFF63D68),
+                            lightColor: const Color(0xFFFFF0F3),
+                            onChanged: (v) => setState(() => breakDuration = v),
+                          ),
+                          
+                          // Tambahan padding di bawah agar kartu terakhir tidak kepotong
+                          const SizedBox(height: 20),
+                        ],
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 16),
-                  
-                  // Kartu 1: Total Fokus
-                  _ModernSliderCard(
-                    icon: Icons.timelapse_rounded,
-                    title: "Total Sesi Fokus",
-                    subtitle: "Durasi kerja keseluruhan",
-                    value: totalFocus,
-                    min: 30,
-                    max: 300,
-                    unit: "menit",
-                    color: const Color(0xFF6B4EFF), // Ungu
-                    onChanged: (v) => setState(() => totalFocus = v),
-                  ),
-                  const SizedBox(height: 16),
 
-                  // Kartu 2: Interval
-                  _ModernSliderCard(
-                    icon: Icons.timer_rounded,
-                    title: "Interval Fokus",
-                    subtitle: "Waktu hingga pengingat",
-                    value: intervalFocus,
-                    min: 1,
-                    max: 120,
-                    unit: "menit",
-                    color: const Color(0xFF2E85FF), // Biru
-                    onChanged: (v) => setState(() => intervalFocus = v),
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Kartu 3: Durasi Istirahat
-                  _ModernSliderCard(
-                    icon: Icons.coffee_rounded,
-                    title: "Durasi Istirahat",
-                    subtitle: "Waktu rehat terpandu",
-                    value: breakDuration,
-                    min: 1,
-                    max: 30,
-                    unit: "menit",
-                    color: const Color(0xFFFF4757), // Merah/Pink Modern
-                    onChanged: (v) => setState(() => breakDuration = v),
+                  // 3. TOMBOL MULAI (Tetap di Bawah)
+                  // Saya hapus Spacer() dan letakkan tombol di luar ScrollView
+                  // agar tombol selalu terlihat di bawah layar.
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 56,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => ActiveFocusScreen(
+                              totalMinutes: totalFocus.toInt(),
+                              intervalMinutes: intervalFocus.toInt(),
+                              breakMinutes: breakDuration.toInt(),
+                            ),
+                          ),
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF4361EE),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(18),
+                        ),
+                        elevation: 5,
+                        shadowColor: const Color(0xFF4361EE).withOpacity(0.4),
+                      ),
+                      child: const Text(
+                        "Mulai Sekarang",
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
                   ),
                   
-                  const SizedBox(height: 30),
-                  
-                  // Tombol Mulai yang Modern
-                  _buildStartButton(),
-                  const SizedBox(height: 40),
+                  const SizedBox(height: 24), // Jarak aman bawah
                 ],
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 
-  // WIDGET: Header Modern dengan Glass Effect Style
-  Widget _buildModernHeader() {
+  // === HEADER (TIDAK BERUBAH) ===
+  Widget _buildHeaderSection() {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(24, 60, 24, 40),
+      height: 260, 
+      padding: const EdgeInsets.fromLTRB(24, 0, 24, 0), 
       decoration: const BoxDecoration(
-        gradient: AppTheme.primaryGradient,
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF4361EE), Color(0xFF7209B7)],
+        ),
         borderRadius: BorderRadius.only(
-          bottomLeft: Radius.circular(40),
-          bottomRight: Radius.circular(40),
+          bottomLeft: Radius.circular(30), 
+          bottomRight: Radius.circular(30),
         ),
         boxShadow: [
           BoxShadow(
@@ -124,128 +179,74 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    greeting,
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.9),
-                      fontSize: 16,
-                    ),
+      child: SafeArea(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text("Selamat Malam,",
+                        style: TextStyle(color: Colors.white70, fontSize: 16)),
+                    SizedBox(height: 4),
+                    Text("Siap Produktif?",
+                        style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold)),
+                  ],
+                ),
+                Container(
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.white24,
                   ),
-                  const SizedBox(height: 4),
-                  const Text(
-                    "Siap Produktif?",
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 26,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 0.5,
+                  padding: const EdgeInsets.all(4),
+                  child: const CircleAvatar(
+                    radius: 22,
+                    backgroundColor: Colors.white,
+                    child: Icon(Icons.person, color: Color(0xFF4361EE)),
+                  ),
+                )
+              ],
+            ),
+            const SizedBox(height: 24),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.white.withOpacity(0.2)),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.show_chart_rounded, color: Colors.white, size: 26),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      "Target harian 80% tercapai!",
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500),
                     ),
                   ),
                 ],
               ),
-              // Avatar / Profile Icon dengan Border Putih
-              Container(
-                padding: const EdgeInsets.all(4),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
-                  shape: BoxShape.circle,
-                ),
-                child: const CircleAvatar(
-                  radius: 24,
-                  backgroundColor: Colors.white,
-                  child: Icon(Icons.person, color: Color(0xFF6B4EFF)),
-                ),
-              )
-            ],
-          ),
-          const SizedBox(height: 25),
-          // Quick Stats Row (Dekorasi)
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.15),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: Colors.white.withOpacity(0.2)),
             ),
-            child: Row(
-              children: [
-                const Icon(Icons.auto_graph_rounded, color: Colors.white, size: 20),
-                const SizedBox(width: 10),
-                const Expanded(
-                  child: Text(
-                    "Target harian Anda 80% tercapai!",
-                    style: TextStyle(color: Colors.white, fontSize: 12),
-                  ),
-                ),
-                Icon(Icons.arrow_forward_ios, color: Colors.white.withOpacity(0.7), size: 12),
-              ],
-            ),
-          )
-        ],
-      ),
-    );
-  }
-
-  // WIDGET: Tombol Mulai Besar
-  Widget _buildStartButton() {
-    return Container(
-      width: double.infinity,
-      height: 60,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        gradient: AppTheme.primaryGradient,
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x606B4EFF),
-            blurRadius: 20,
-            offset: Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(20),
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => ActiveFocusScreen(
-                  totalMinutes: totalFocus.toInt(),
-                  intervalMinutes: intervalFocus.toInt(),
-                  breakMinutes: breakDuration.toInt(),
-                ),
-              ),
-            );
-          },
-          child: const Center(
-            child: Text(
-              "Mulai Sesi Fokus",
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 1,
-              ),
-            ),
-          ),
+          ],
         ),
       ),
     );
   }
 }
 
-// WIDGET KHUSUS: Kartu Slider Modern
-class _ModernSliderCard extends StatelessWidget {
+// === KARTU KONFIGURASI (UKURAN BESAR/NORMAL) ===
+class _ConfigCard extends StatelessWidget {
   final IconData icon;
   final String title;
   final String subtitle;
@@ -253,10 +254,11 @@ class _ModernSliderCard extends StatelessWidget {
   final double min;
   final double max;
   final String unit;
-  final Color color;
+  final Color primaryColor;
+  final Color lightColor;
   final Function(double) onChanged;
 
-  const _ModernSliderCard({
+  const _ConfigCard({
     required this.icon,
     required this.title,
     required this.subtitle,
@@ -264,95 +266,90 @@ class _ModernSliderCard extends StatelessWidget {
     required this.min,
     required this.max,
     required this.unit,
-    required this.color,
+    required this.primaryColor,
+    required this.lightColor,
     required this.onChanged,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      // Padding diperbesar ke 20 agar kartu terlihat 'gemuk' & lega
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20), 
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(24), // Radius lebih smooth
         boxShadow: [
           BoxShadow(
             color: Colors.grey.withOpacity(0.06),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
+            blurRadius: 15,
+            offset: const Offset(0, 5),
           ),
         ],
       ),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          // Header Kartu
           Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Icon Box Besar
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: color.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(16),
+                  color: lightColor,
+                  borderRadius: BorderRadius.circular(14),
                 ),
-                child: Icon(icon, color: color, size: 24),
+                child: Icon(icon, color: primaryColor, size: 28), // Icon diperbesar
               ),
               const SizedBox(width: 16),
+              
+              // Teks Judul & Subtitle
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF2D3142),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      subtitle,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey[400],
-                      ),
-                    ),
+                    Text(title,
+                        style: const TextStyle(
+                            fontSize: 16, // Font judul diperbesar
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF2D3142))),
+                    const SizedBox(height: 2),
+                    Text(subtitle,
+                        style: TextStyle(fontSize: 13, color: Colors.grey[500])), // Font subtitle diperbesar
                   ],
                 ),
               ),
-              // Display Nilai Besar
+
+              // Badge Nilai
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
-                  color: color.withOpacity(0.05),
-                  borderRadius: BorderRadius.circular(10),
+                  color: lightColor,
+                  borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
                   "${value.toInt()} $unit",
                   style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: color,
-                  ),
+                      color: primaryColor,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14), // Font nilai diperbesar
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 24),
           
-          // Custom Slider Theme
+          const SizedBox(height: 12), // Jarak ke slider lebih lega
+          
+          // Slider
           SliderTheme(
             data: SliderTheme.of(context).copyWith(
-              activeTrackColor: color,
-              inactiveTrackColor: color.withOpacity(0.1),
-              trackHeight: 8.0, // Track lebih tebal
+              activeTrackColor: primaryColor,
+              inactiveTrackColor: lightColor,
+              trackHeight: 6.0, // Track slider lebih tebal
               thumbColor: Colors.white,
-              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 12.0, elevation: 4),
-              overlayColor: color.withOpacity(0.2),
-              overlayShape: const RoundSliderOverlayShape(overlayRadius: 24.0),
-              // Membuat track menjadi rounded di ujung
-              trackShape: const RoundedRectSliderTrackShape(), 
+              thumbShape: const RoundSliderThumbShape(
+                  enabledThumbRadius: 10.0, elevation: 3), // Tombol geser lebih besar
+              overlayShape: const RoundSliderOverlayShape(overlayRadius: 20.0),
             ),
             child: Slider(
               value: value,
