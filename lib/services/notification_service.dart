@@ -1,19 +1,17 @@
 // File: lib/services/notification_service.dart
 import 'dart:io';
 import 'dart:async';
-import 'dart:typed_data'; // ✅ WAJIB ADA
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:flutter_ringtone_player/flutter_ringtone_player.dart'; // ✅ Import Ringtone
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
+import 'package:shared_preferences/shared_preferences.dart';
 import '../main.dart'; 
 import '../screens/alarm_lock_screen.dart';
 import 'database_helper.dart'; 
 import '../models/schedule_model.dart'; 
-
-// -----------------------------------------------------------------------------
-// BACKGROUND HANDLER
-// -----------------------------------------------------------------------------
 
 @pragma('vm:entry-point')
 void notificationTapBackground(NotificationResponse notificationResponse) async {
@@ -22,16 +20,11 @@ void notificationTapBackground(NotificationResponse notificationResponse) async 
   try { 
     tz.setLocalLocation(tz.getLocation('Asia/Jakarta')); 
   } catch (e) { 
-    debugPrint("⚠️ Timezone Error in Background: $e"); 
+    debugPrint("⚠️ Timezone Error: $e"); 
   }
 
   final service = NotificationService();
-  
-  const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
-  const iosInit = DarwinInitializationSettings();
-  await service.notificationsPlugin.initialize(
-    const InitializationSettings(android: androidInit, iOS: iosInit),
-  );
+  await service.init(); 
 
   if (notificationResponse.actionId != null) {
     await service.handleActionLogic(
@@ -50,8 +43,8 @@ class NotificationService {
   static String? _lastProcessedPayload;
   static DateTime? _lastProcessedTime;
 
-  // ✅ GANTI ID KE V7 (Reset konfigurasi agar suara stabil)
-  static const String channelId = 'rehat_alarm_system_fix_v7';
+  // ✅ ID V8 (Agar reset)
+  static const String channelId = 'rehat_alarm_system_fix_v8';
   static const String channelName = 'Rehat Alarm (Stable)';
   static const String channelDesc = 'Alarm persistent dengan suara sistem';
 
@@ -65,7 +58,11 @@ class NotificationService {
     try { tz.setLocalLocation(tz.getLocation('Asia/Jakarta')); } catch (e) { debugPrint("⚠️ Timezone Error"); }
 
     const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
-    const iosInit = DarwinInitializationSettings(requestSoundPermission: true, requestAlertPermission: true, requestBadgePermission: true);
+    const iosInit = DarwinInitializationSettings(
+      requestSoundPermission: true, 
+      requestAlertPermission: true, 
+      requestBadgePermission: true
+    );
 
     await notificationsPlugin.initialize(
       const InitializationSettings(android: androidInit, iOS: iosInit),
@@ -80,35 +77,55 @@ class NotificationService {
     );
 
     await _autoRequestPermissions();
-    await _createHighPriorityChannel();
   }
 
+  // ✅ HELPER SUARA (BARU)
+  void _playAlarmSound() {
+    debugPrint("🔊 Memulai Ringtone Player...");
+    FlutterRingtonePlayer().playAlarm(
+      looping: true, 
+      volume: 1.0,   
+      asAlarm: true, 
+    );
+  }
+
+  void _stopAlarmSound() {
+    debugPrint("🔇 Menghentikan Ringtone Player...");
+    FlutterRingtonePlayer().stop();
+  }
+
+  // ✅ UPDATE NAVIGASI
   void _navigateToLockScreen(String payload) {
    if (isLockScreenOpen) {
-      debugPrint("⛔ Lock Screen sudah aktif, skip navigasi ganda.");
+      debugPrint("⛔ Lock Screen sudah aktif.");
       return; 
     }
+    
+    // Mulai suara alarm saat layar kunci muncul
+    _playAlarmSound();
+
     isLockScreenOpen = true; 
     Future.delayed(Duration.zero, () {
       navigatorKey.currentState?.push(
         MaterialPageRoute(builder: (_) => AlarmLockScreen(payload: payload)),
       ).then((_) {
         isLockScreenOpen = false; 
+        _stopAlarmSound(); // Matikan suara jika user back
       });
     });
   }
 
-  // =========================
-  // LOGIKA UTAMA
-  // =========================
+  // ✅ UPDATE ACTION LOGIC
   Future<void> handleActionLogic(String actionId, String? payload) async {
+    // Hentikan suara segera saat user berinteraksi
+    _stopAlarmSound();
+
     if (payload == null) return;
 
     final now = DateTime.now();
     if (_lastProcessedPayload == payload && 
         _lastProcessedTime != null && 
         now.difference(_lastProcessedTime!).inSeconds < 3) {
-      debugPrint("⛔ SKIPPING: Aksi ganda terdeteksi (Debounce Active)");
       return; 
     }
 
@@ -139,26 +156,78 @@ class NotificationService {
     else if (actionId == 'snooze') {
       debugPrint("👉 USER MEMILIH SNOOZE");
       if (snoozeCount < maxSnoozeCount) {
-        debugPrint("⏳ Menambah Delay (+5 menit) di DB...");
         await _addDelayToDatabase(dbId, 5);
-        debugPrint("⏳ Menjadwalkan Ulang...");
         await rescheduleAllNotificationsBackground();
-      } else {
-        debugPrint("⛔ Batas Snooze tercapai.");
       }
     }
   }
   
+  // ✅ UPDATE CANCEL
+  Future<void> cancelNotification(int id) async {
+    _stopAlarmSound();
+    await notificationsPlugin.cancel(id);
+  }
+
+  Future<void> cancelAllNotifications() async {
+    _stopAlarmSound();
+    await notificationsPlugin.cancelAll();
+  }
+
+  // ✅ UPDATE DETAIL (SUARA KUSTOM + CHANNEL DINAMIS)
+  Future<NotificationDetails> _details({required bool showSnooze}) async {
+    final prefs = await SharedPreferences.getInstance();
+    final int soundIndex = prefs.getInt('selected_sound_index') ?? 5; 
+
+    String soundFileName = 'sound$soundIndex'; 
+    String dynamicChannelId = 'rehat_alarm_sound_v8_$soundIndex';
+
+    List<AndroidNotificationAction> actions = [
+      const AndroidNotificationAction('dismiss', 'Matikan / Mulai', showsUserInterface: false, cancelNotification: true),
+    ];
+    if (showSnooze) {
+      actions.insert(0, const AndroidNotificationAction('snooze', 'Tunda 5 Menit', showsUserInterface: false, cancelNotification: true));
+    }
+
+    return NotificationDetails(
+      android: AndroidNotificationDetails(
+        dynamicChannelId, 
+        'Rehat Alarm ($soundFileName)', 
+        channelDescription: 'Alarm fokus dengan suara kustom',
+        importance: Importance.max, 
+        priority: Priority.max, 
+        ongoing: true,
+        autoCancel: false,
+        additionalFlags: Int32List.fromList(<int>[4]), // Insistent
+        visibility: NotificationVisibility.secret, 
+        
+        playSound: true, 
+        sound: RawResourceAndroidNotificationSound(soundFileName),
+        audioAttributesUsage: AudioAttributesUsage.alarm,
+        
+        fullScreenIntent: true, 
+        category: AndroidNotificationCategory.alarm,
+        actions: actions,
+      ),
+      iOS: const DarwinNotificationDetails(
+        presentSound: true,
+        interruptionLevel: InterruptionLevel.timeSensitive, 
+      ),
+    );
+  }
+
   Future<void> _scheduleFollowUpAlarm(String title, String body, int durationMinutes, int sourceId) async {
     final tz.TZDateTime now = tz.TZDateTime.now(tz.local);
     final tz.TZDateTime nextTime = now.add(Duration(minutes: durationMinutes));
     
     int newId = sourceId + 1; 
     
+    final details = await _details(showSnooze: true);
+
     await notificationsPlugin.zonedSchedule(
-      newId, title, body, nextTime, _details(showSnooze: true),
+      newId, title, body, nextTime, details,
       androidScheduleMode: AndroidScheduleMode.alarmClock,
-      payload: "$newId|none|$title|$body|0|0", 
+      payload: "$newId|none|$title|$body|0|0",
+      // ❌ uiLocalNotificationDateInterpretation SUDAH DIHAPUS
     );
   }
 
@@ -173,9 +242,6 @@ class NotificationService {
   }
 
   Future<void> rescheduleAllNotificationsBackground() async {
-    final String timeCreated = DateTime.now().toString().substring(0, 19);
-    debugPrint("\n🔄 [BACKGROUND] SMART RESCHEDULE... $timeCreated");
-    
     List<ScheduleModel> allSchedules = await DatabaseHelper.instance.readAllSchedules();
     if (allSchedules.isEmpty) return;
     await cancelAllNotifications();
@@ -193,7 +259,6 @@ class NotificationService {
        for (String dayName in item.activeDays) {
          int dayOfWeek = _getDayInt(dayName); 
          
-         // 1. OPENING
          TimeOfDay openingTimeObj = _minutesToTime(originalStartMin);
          await scheduleWeeklyNotification(
             id: globalIdCounter++, dbId: item.id, title: "Selamat Beraktivitas! 💪", 
@@ -201,7 +266,6 @@ class NotificationService {
             dayOfWeek: dayOfWeek, nextDuration: item.intervalDuration
          );
 
-         // 2. INTERVAL
          int trackingMin = originalStartMin;
          while (trackingMin < fixedEndMin) {
            // REHAT
@@ -241,7 +305,6 @@ class NotificationService {
            trackingMin = originalFokusStart;
          }
 
-         // 3. CLOSING
          TimeOfDay endTimeObj = _minutesToTime(fixedEndMin);
          await scheduleWeeklyNotification(
            id: globalIdCounter++, dbId: item.id, title: "Aktivitas Selesai! 🎉", body: "Sampai jumpa lagi!", 
@@ -293,67 +356,22 @@ class NotificationService {
     while (scheduledDate.weekday != dayOfWeek) { scheduledDate = scheduledDate.add(const Duration(days: 1)); }
     if (scheduledDate.isBefore(now)) { scheduledDate = scheduledDate.add(const Duration(days: 7)); }
 
+    final details = await _details(showSnooze: true);
+
     await notificationsPlugin.zonedSchedule(
-      id, title, body, scheduledDate, _details(showSnooze: true),
+      id, title, body, scheduledDate, details,
       androidScheduleMode: AndroidScheduleMode.alarmClock,
       matchDateTimeComponents: DateTimeComponents.dayOfWeekAndTime,
       payload: "$id|$dbId|$title|$body|0|$nextDuration", 
-    );
-  }
-
-  // ==========================================
-  // CONFIG NOTIFIKASI (Stable & Persistent)
-  // ==========================================
-  NotificationDetails _details({required bool showSnooze}) {
-    List<AndroidNotificationAction> actions = [
-      const AndroidNotificationAction('dismiss', 'Matikan / Mulai', showsUserInterface: false, cancelNotification: true),
-    ];
-    if (showSnooze) {
-      actions.insert(0, const AndroidNotificationAction('snooze', 'Tunda 5 Menit', showsUserInterface: false, cancelNotification: true));
-    }
-
-    return NotificationDetails(
-      android: AndroidNotificationDetails(
-        channelId, 
-        channelName, 
-        channelDescription: channelDesc,
-        
-        // ✅ WAJIB MAX: Agar suara tidak mati saat Quick Settings dibuka
-        importance: Importance.max, 
-        priority: Priority.max, 
-
-        // ✅ ONGOING: Agar notifikasi 'lengket' dan tidak mudah terhapus sistem
-        ongoing: true,
-        autoCancel: false,
-        
-        // ✅ INSISTENT FLAG (Nilai 4): Memaksa suara looping dan terus berbunyi (Agresif)
-        additionalFlags: Int32List.fromList(<int>[2]),
-
-        // ✅ Tetap gunakan VISIBILITY SECRET untuk menyembunyikan konten di Lock Screen
-        visibility: NotificationVisibility.secret, 
-
-        playSound: true, 
-        sound: const UriAndroidNotificationSound("content://settings/system/alarm_alert"),
-        audioAttributesUsage: AudioAttributesUsage.alarm,
-
-        fullScreenIntent: true, 
-        category: AndroidNotificationCategory.alarm,
-        actions: actions,
-      ),
-      iOS: const DarwinNotificationDetails(
-        presentSound: true,
-        interruptionLevel: InterruptionLevel.timeSensitive, 
-      ),
+      // ❌ uiLocalNotificationDateInterpretation SUDAH DIHAPUS
     );
   }
   
   Future<void> showInstantNotification(String title, String body, {int nextDuration = 0}) async {
     int id = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-    await notificationsPlugin.show(id, title, body, _details(showSnooze: true), payload: "$id|none|$title|$body|0|$nextDuration");
+    final details = await _details(showSnooze: true); 
+    await notificationsPlugin.show(id, title, body, details, payload: "$id|none|$title|$body|0|$nextDuration");
   }
-
-  Future<void> cancelAllNotifications() async => await notificationsPlugin.cancelAll();
-  Future<void> cancelNotification(int id) async => await notificationsPlugin.cancel(id);
   
   Future<void> _autoRequestPermissions() async {
     if (Platform.isAndroid) {
@@ -361,18 +379,5 @@ class NotificationService {
       await androidPlugin?.requestNotificationsPermission();
       await androidPlugin?.requestExactAlarmsPermission();
     }
-  }
-
-  Future<void> _createHighPriorityChannel() async {
-     const AndroidNotificationChannel channel = AndroidNotificationChannel(
-      channelId, 
-      channelName,
-      description: channelDesc,
-      importance: Importance.max,
-      playSound: true,
-      sound: UriAndroidNotificationSound("content://settings/system/alarm_alert"),
-      audioAttributesUsage: AudioAttributesUsage.alarm, 
-    );
-    await notificationsPlugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()?.createNotificationChannel(channel);
   }
 }

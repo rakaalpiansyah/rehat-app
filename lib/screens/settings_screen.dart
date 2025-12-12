@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart'; // Import Provider
+import '../providers/settings_provider.dart'; // Import Provider yang kita buat
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
+    // Ambil data setting dari provider
+    final settings = context.watch<SettingsProvider>();
+
     return Scaffold(
       appBar: AppBar(
         title: const Text("Pengaturan", style: TextStyle(fontWeight: FontWeight.bold)),
@@ -12,13 +17,48 @@ class SettingsScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.all(24),
         children: [
-          // KARTU 1: Suara Notifikasi
-          const _CustomCard(
-            padding: EdgeInsets.all(16),
+          // KARTU 0: TEMA GELAP (Fitur Baru)
+          _CustomCard(
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.indigo[50],
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.dark_mode_rounded, color: Colors.indigo),
+                ),
+                const SizedBox(width: 15),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text("Mode Gelap", style: TextStyle(fontWeight: FontWeight.bold)),
+                      Text("Nyaman di mata saat malam", style: TextStyle(fontSize: 12, color: Colors.grey)),
+                    ],
+                  ),
+                ),
+                Switch(
+                  value: settings.isDarkMode,
+                  onChanged: (val) {
+                    context.read<SettingsProvider>().toggleTheme(val);
+                  },
+                  activeThumbColor: const Color(0xFF6B4EFF),
+                ),
+              ],
+            ),
+          ),
+          
+          const SizedBox(height: 16),
+
+          // KARTU 1: Suara Notifikasi (Updated)
+          _CustomCard(
+            padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(children: [
+                const Row(children: [
                   Icon(Icons.volume_up, color: Color(0xFF6B4EFF)),
                   SizedBox(width: 10),
                   Column(
@@ -29,15 +69,16 @@ class SettingsScreen extends StatelessWidget {
                     ]
                   )
                 ]),
-                SizedBox(height: 20),
-                _SoundGrid(),
+                const SizedBox(height: 20),
+                // Pass current selection to Grid
+                _SoundGrid(selectedIndex: settings.selectedSoundIndex),
               ],
             ),
           ),
           
           const SizedBox(height: 16),
           
-          // KARTU 2: Toggle Getaran
+          // KARTU 2: Toggle Getaran (Updated)
           _CustomCard(
             child: Row(
               children: [
@@ -60,8 +101,10 @@ class SettingsScreen extends StatelessWidget {
                   )
                 ),
                 Switch(
-                  value: true, 
-                  onChanged: (val){}, 
+                  value: settings.isVibrationEnabled, 
+                  onChanged: (val){
+                    context.read<SettingsProvider>().toggleVibration(val);
+                  }, 
                   activeThumbColor: const Color(0xFF6B4EFF)
                 ),
               ],
@@ -73,23 +116,20 @@ class SettingsScreen extends StatelessWidget {
   }
 }
 
-// ==========================================
-// WIDGET LOKAL (Hanya untuk halaman ini)
-// ==========================================
-
+// Widget Grid Suara (Updated)
 class _SoundGrid extends StatelessWidget {
-  const _SoundGrid();
+  final int selectedIndex;
+  const _SoundGrid({required this.selectedIndex});
 
   @override
   Widget build(BuildContext context) {
-    // Data dummy suara
     final sounds = [
-      {"icon": Icons.water_drop, "label": "Gemericik Air", "selected": false},
-      {"icon": Icons.cloud, "label": "Hujan Ringan", "selected": false},
-      {"icon": Icons.forest, "label": "Suara Hutan", "selected": false},
-      {"icon": Icons.spa, "label": "Angin Sepoi", "selected": false},
-      {"icon": Icons.music_note, "label": "Kicau Burung", "selected": false},
-      {"icon": Icons.waves, "label": "Ombak Pantai", "selected": true},
+      {"icon": Icons.water_drop, "label": "Gemericik Air"},
+      {"icon": Icons.cloud, "label": "Hujan Ringan"},
+      {"icon": Icons.forest, "label": "Suara Hutan"},
+      {"icon": Icons.spa, "label": "Angin Sepoi"},
+      {"icon": Icons.music_note, "label": "Kicau Burung"},
+      {"icon": Icons.waves, "label": "Ombak Pantai"},
     ];
 
     return GridView.builder(
@@ -104,21 +144,27 @@ class _SoundGrid extends StatelessWidget {
       itemCount: sounds.length,
       itemBuilder: (ctx, i) {
         final s = sounds[i];
-        bool isSel = s['selected'] as bool;
-        return Container(
-          decoration: BoxDecoration(
-            border: Border.all(color: isSel ? const Color(0xFF2E85FF) : Colors.grey.shade200, width: 2),
-            borderRadius: BorderRadius.circular(15),
-            color: isSel ? const Color(0xFF2E85FF).withOpacity(0.05) : Colors.white,
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(s['icon'] as IconData, size: 30, color: isSel ? const Color(0xFF2E85FF) : Colors.grey),
-              const SizedBox(height: 8),
-              Text(s['label'] as String, style: TextStyle(fontSize: 12, color: isSel ? const Color(0xFF2E85FF) : Colors.grey)),
-              if(isSel) const Icon(Icons.check_circle, size: 16, color: Color(0xFF2E85FF))
-            ],
+        bool isSel = i == selectedIndex; // Logic seleksi
+        return GestureDetector(
+          onTap: () {
+            // Simpan index suara yang dipilih
+            context.read<SettingsProvider>().setSound(i);
+          },
+          child: Container(
+            decoration: BoxDecoration(
+              border: Border.all(color: isSel ? const Color(0xFF2E85FF) : Colors.grey.shade200, width: 2),
+              borderRadius: BorderRadius.circular(15),
+              color: isSel ? const Color(0xFF2E85FF).withOpacity(0.05) : Theme.of(context).cardColor,
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(s['icon'] as IconData, size: 30, color: isSel ? const Color(0xFF2E85FF) : Colors.grey),
+                const SizedBox(height: 8),
+                Text(s['label'] as String, style: TextStyle(fontSize: 12, color: isSel ? const Color(0xFF2E85FF) : Colors.grey)),
+                if(isSel) const Icon(Icons.check_circle, size: 16, color: Color(0xFF2E85FF))
+              ],
+            ),
           ),
         );
       },
@@ -126,39 +172,34 @@ class _SoundGrid extends StatelessWidget {
   }
 }
 
-// Class CustomCard dipindahkan ke sini dan diberi nama _CustomCard (Private)
 class _CustomCard extends StatelessWidget {
   final Widget child;
   final EdgeInsets padding;
-  final VoidCallback? onTap;
-
+  
   const _CustomCard({
-    // ignore: unused_element
-    super.key,
     required this.child,
     this.padding = const EdgeInsets.all(20),
-    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: padding,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 20,
-              offset: const Offset(0, 10),
-            ),
-          ],
-        ),
-        child: child,
+    // Sesuaikan warna kartu dengan tema (Dark/Light)
+    final cardColor = Theme.of(context).cardTheme.color ?? Theme.of(context).colorScheme.surface;
+    
+    return Container(
+      padding: padding,
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
       ),
+      child: child,
     );
   }
 }

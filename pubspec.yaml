@@ -38,7 +38,7 @@ dependencies:
   intl: ^0.20.2          # Formatting waktu
   audioplayers: ^6.0.0   # Untuk memutar suara tenang
   flutter_local_notifications: ^19.5.0 # Notifikasi lokal
-  shared_preferences: ^2.2.2 # Simpan preferensi
+  shared_preferences: ^2.5.4 # Simpan preferensi
   permission_handler: ^12.0.1 # Izin aplikasi
   google_fonts: ^6.1.0       # Untuk font modern (Poppins/Nunito)
   percent_indicator: ^4.2.3  # Untuk lingkaran timer (Image 5)
@@ -46,6 +46,7 @@ dependencies:
   flutter_timezone: ^5.0.1  # Dapatkan zona waktu perangkat
   sqflite: ^2.3.0
   path: ^1.9.0
+  flutter_ringtone_player: ^4.0.0
 
 
 dev_dependencies:

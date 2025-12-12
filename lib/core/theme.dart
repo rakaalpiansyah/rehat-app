@@ -13,6 +13,9 @@ class AppTheme {
   static const Color textDark = Color(0xFF1F2937);      // Hitam lembut
   static const Color textGrey = Color(0xFF9CA3AF);      // Abu-abu teks
 
+  static const Color backgroundDark = Color(0xFF121212);
+  static const Color cardDark = Color(0xFF1E1E1E);
+
   // === BACKWARD COMPATIBILITY (Agar file lama tidak error) ===
   static const Color primaryColor = primaryPurple; 
   static const Color secondaryColor = accentBlue;
@@ -44,4 +47,38 @@ class AppTheme {
       ),
     );
   }
+
+  static ThemeData get darkTheme {
+    return ThemeData(
+      useMaterial3: true,
+      brightness: Brightness.dark, // Mode gelap sistem
+      scaffoldBackgroundColor: backgroundDark,
+      fontFamily: GoogleFonts.poppins().fontFamily,
+      textTheme: GoogleFonts.poppinsTextTheme(ThemeData.dark().textTheme),
+      colorScheme: ColorScheme.fromSeed(
+        seedColor: primaryPurple,
+        brightness: Brightness.dark,
+        primary: primaryPurple,
+        secondary: accentBlue,
+        surface: cardDark,
+      ),
+      appBarTheme: const AppBarTheme(
+        backgroundColor: backgroundDark,
+        foregroundColor: Colors.white,
+      ),
+      // Styling Switch agar konsisten
+      switchTheme: SwitchThemeData(
+        thumbColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) return primaryPurple;
+          return Colors.grey;
+        }),
+        trackColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) return primaryPurple.withOpacity(0.5);
+          return Colors.grey.withOpacity(0.3);
+        }),
+      ),
+    );
+  }
+
+
 }
