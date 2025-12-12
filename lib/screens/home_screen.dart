@@ -15,10 +15,12 @@ class _HomeScreenState extends State<HomeScreen> {
   double intervalFocus = 50;
   double breakDuration = 9;
 
-@override
+  @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FD),
+      backgroundColor: theme.scaffoldBackgroundColor,
       body: Column(
         children: [
           // 1. HEADER (Tetap Tinggi 260)
@@ -31,23 +33,22 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Column(
                 children: [
                   const SizedBox(height: 16),
-                  
+
                   // BAGIAN YANG BISA DI-SCROLL
                   // Kita bungkus konten kartu dengan Expanded + SingleChildScrollView
                   // Agar jika layar pendek, user bisa scroll ke bawah.
                   Expanded(
                     child: SingleChildScrollView(
                       // BouncingScrollPhysics memberi efek pantul (bagus di iOS/Android modern)
-                      physics: const BouncingScrollPhysics(), 
+                      physics: const BouncingScrollPhysics(),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
+                          Text(
                             "Konfigurasi Sesi",
-                            style: TextStyle(
+                            style: theme.textTheme.titleMedium?.copyWith(
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
-                              color: Color(0xFF2D3142),
                             ),
                           ),
 
@@ -98,7 +99,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             lightColor: const Color(0xFFFFF0F3),
                             onChanged: (v) => setState(() => breakDuration = v),
                           ),
-                          
+
                           // Tambahan padding di bawah agar kartu terakhir tidak kepotong
                           const SizedBox(height: 20),
                         ],
@@ -127,24 +128,24 @@ class _HomeScreenState extends State<HomeScreen> {
                         );
                       },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF4361EE),
+                        backgroundColor: cs.primary,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(18),
                         ),
                         elevation: 5,
-                        shadowColor: const Color(0xFF4361EE).withOpacity(0.4),
+                        shadowColor: cs.primary.withOpacity(0.4),
                       ),
-                      child: const Text(
+                      child: Text(
                         "Mulai Sekarang",
-                        style: TextStyle(
+                        style: theme.textTheme.titleMedium?.copyWith(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
-                          color: Colors.white,
+                          color: cs.onPrimary,
                         ),
                       ),
                     ),
                   ),
-                  
+
                   const SizedBox(height: 24), // Jarak aman bawah
                 ],
               ),
@@ -155,89 +156,45 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // === HEADER (TIDAK BERUBAH) ===
+  // === HEADER ===
   Widget _buildHeaderSection() {
+    final theme = Theme.of(context);
     return Container(
       width: double.infinity,
-      height: 260, 
-      padding: const EdgeInsets.fromLTRB(24, 0, 24, 0), 
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
+      padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [Color(0xFF4361EE), Color(0xFF7209B7)],
         ),
-        borderRadius: BorderRadius.only(
-          bottomLeft: Radius.circular(30), 
+        borderRadius: const BorderRadius.only(
+          bottomLeft: Radius.circular(30),
           bottomRight: Radius.circular(30),
         ),
         boxShadow: [
           BoxShadow(
-            color: Color(0x406B4EFF),
+            color: Colors.black
+                .withOpacity(theme.brightness == Brightness.dark ? 0.3 : 0.25),
             blurRadius: 20,
-            offset: Offset(0, 10),
+            offset: const Offset(0, 10),
           ),
         ],
       ),
       child: SafeArea(
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text("Selamat Malam,",
-                        style: TextStyle(color: Colors.white70, fontSize: 16)),
-                    SizedBox(height: 4),
-                    Text("Siap Produktif?",
-                        style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold)),
-                  ],
-                ),
-                Container(
-                  decoration: const BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Colors.white24,
-                  ),
-                  padding: const EdgeInsets.all(4),
-                  child: const CircleAvatar(
-                    radius: 22,
-                    backgroundColor: Colors.white,
-                    child: Icon(Icons.person, color: Color(0xFF4361EE)),
-                  ),
-                )
-              ],
-            ),
-            const SizedBox(height: 24),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.15),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.white.withOpacity(0.2)),
-              ),
-              child: const Row(
-                children: [
-                  Icon(Icons.show_chart_rounded, color: Colors.white, size: 26),
-                  SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      "Target harian 80% tercapai!",
-                      style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+            Text("Selamat Malam,",
+                style: theme.textTheme.bodyMedium
+                    ?.copyWith(color: Colors.white70, fontSize: 16)),
+            const SizedBox(height: 4),
+            Text("Siap Produktif?",
+                style: theme.textTheme.titleLarge?.copyWith(
+                    color: Colors.white,
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold)),
           ],
         ),
       ),
@@ -273,15 +230,18 @@ class _ConfigCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
     return Container(
       // Padding diperbesar ke 20 agar kartu terlihat 'gemuk' & lega
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20), 
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: cs.surface,
         borderRadius: BorderRadius.circular(24), // Radius lebih smooth
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.06),
+            color: Colors.black
+                .withOpacity(theme.brightness == Brightness.dark ? 0.3 : 0.06),
             blurRadius: 15,
             offset: const Offset(0, 5),
           ),
@@ -299,30 +259,33 @@ class _ConfigCard extends StatelessWidget {
                   color: lightColor,
                   borderRadius: BorderRadius.circular(14),
                 ),
-                child: Icon(icon, color: primaryColor, size: 28), // Icon diperbesar
+                child: Icon(icon,
+                    color: primaryColor, size: 28), // Icon diperbesar
               ),
               const SizedBox(width: 16),
-              
+
               // Teks Judul & Subtitle
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(title,
-                        style: const TextStyle(
+                        style: theme.textTheme.titleMedium?.copyWith(
                             fontSize: 16, // Font judul diperbesar
                             fontWeight: FontWeight.bold,
-                            color: Color(0xFF2D3142))),
+                            color: theme.textTheme.titleMedium?.color)),
                     const SizedBox(height: 2),
                     Text(subtitle,
-                        style: TextStyle(fontSize: 13, color: Colors.grey[500])), // Font subtitle diperbesar
+                        style: theme.textTheme.bodySmall?.copyWith(
+                            fontSize: 13)), // Font subtitle diperbesar
                   ],
                 ),
               ),
 
               // Badge Nilai
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
                   color: lightColor,
                   borderRadius: BorderRadius.circular(12),
@@ -337,9 +300,9 @@ class _ConfigCard extends StatelessWidget {
               ),
             ],
           ),
-          
+
           const SizedBox(height: 12), // Jarak ke slider lebih lega
-          
+
           // Slider
           SliderTheme(
             data: SliderTheme.of(context).copyWith(
@@ -348,7 +311,8 @@ class _ConfigCard extends StatelessWidget {
               trackHeight: 6.0, // Track slider lebih tebal
               thumbColor: Colors.white,
               thumbShape: const RoundSliderThumbShape(
-                  enabledThumbRadius: 10.0, elevation: 3), // Tombol geser lebih besar
+                  enabledThumbRadius: 10.0,
+                  elevation: 3), // Tombol geser lebih besar
               overlayShape: const RoundSliderOverlayShape(overlayRadius: 20.0),
             ),
             child: Slider(

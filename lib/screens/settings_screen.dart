@@ -12,7 +12,8 @@ class SettingsScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Pengaturan", style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text("Pengaturan",
+            style: TextStyle(fontWeight: FontWeight.bold)),
       ),
       body: ListView(
         padding: const EdgeInsets.all(24),
@@ -27,15 +28,18 @@ class SettingsScreen extends StatelessWidget {
                     color: Colors.indigo[50],
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: const Icon(Icons.dark_mode_rounded, color: Colors.indigo),
+                  child:
+                      const Icon(Icons.dark_mode_rounded, color: Colors.indigo),
                 ),
                 const SizedBox(width: 15),
                 const Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text("Mode Gelap", style: TextStyle(fontWeight: FontWeight.bold)),
-                      Text("Nyaman di mata saat malam", style: TextStyle(fontSize: 12, color: Colors.grey)),
+                      Text("Mode Gelap",
+                          style: TextStyle(fontWeight: FontWeight.bold)),
+                      Text("Nyaman di mata saat malam",
+                          style: TextStyle(fontSize: 12, color: Colors.grey)),
                     ],
                   ),
                 ),
@@ -49,7 +53,7 @@ class SettingsScreen extends StatelessWidget {
               ],
             ),
           ),
-          
+
           const SizedBox(height: 16),
 
           // KARTU 1: Suara Notifikasi (Updated)
@@ -62,12 +66,13 @@ class SettingsScreen extends StatelessWidget {
                   Icon(Icons.volume_up, color: Color(0xFF6B4EFF)),
                   SizedBox(width: 10),
                   Column(
-                    crossAxisAlignment: CrossAxisAlignment.start, 
-                    children: [
-                      Text("Suara Notifikasi", style: TextStyle(fontWeight: FontWeight.bold)), 
-                      Text("Pilih audio yang menenangkan", style: TextStyle(fontSize: 12, color: Colors.grey))
-                    ]
-                  )
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text("Suara Notifikasi",
+                            style: TextStyle(fontWeight: FontWeight.bold)),
+                        Text("Pilih audio yang menenangkan",
+                            style: TextStyle(fontSize: 12, color: Colors.grey))
+                      ])
                 ]),
                 const SizedBox(height: 20),
                 // Pass current selection to Grid
@@ -75,38 +80,35 @@ class SettingsScreen extends StatelessWidget {
               ],
             ),
           ),
-          
+
           const SizedBox(height: 16),
-          
+
           // KARTU 2: Toggle Getaran (Updated)
           _CustomCard(
             child: Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.all(10), 
-                  decoration: BoxDecoration(
-                    color: Colors.purple[50], 
-                    borderRadius: BorderRadius.circular(10)
-                  ), 
-                  child: const Icon(Icons.vibration, color: Colors.purple)
-                ),
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                        color: Colors.purple[50],
+                        borderRadius: BorderRadius.circular(10)),
+                    child: const Icon(Icons.vibration, color: Colors.purple)),
                 const SizedBox(width: 15),
                 const Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start, 
-                    children: [
-                      Text("Getaran", style: TextStyle(fontWeight: FontWeight.bold)), 
-                      Text("Aktifkan getaran notifikasi", style: TextStyle(fontSize: 12, color: Colors.grey))
-                    ]
-                  )
-                ),
+                    child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                      Text("Getaran",
+                          style: TextStyle(fontWeight: FontWeight.bold)),
+                      Text("Aktifkan getaran notifikasi",
+                          style: TextStyle(fontSize: 12, color: Colors.grey))
+                    ])),
                 Switch(
-                  value: settings.isVibrationEnabled, 
-                  onChanged: (val){
-                    context.read<SettingsProvider>().toggleVibration(val);
-                  }, 
-                  activeThumbColor: const Color(0xFF6B4EFF)
-                ),
+                    value: settings.isVibrationEnabled,
+                    onChanged: (val) {
+                      context.read<SettingsProvider>().toggleVibration(val);
+                    },
+                    activeThumbColor: const Color(0xFF6B4EFF)),
               ],
             ),
           )
@@ -124,9 +126,9 @@ class _SoundGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final sounds = [
+      {"icon": Icons.alarm, "label": "Default Alarm"},
       {"icon": Icons.water_drop, "label": "Gemericik Air"},
       {"icon": Icons.cloud, "label": "Hujan Ringan"},
-      {"icon": Icons.forest, "label": "Suara Hutan"},
       {"icon": Icons.spa, "label": "Angin Sepoi"},
       {"icon": Icons.music_note, "label": "Kicau Burung"},
       {"icon": Icons.waves, "label": "Ombak Pantai"},
@@ -152,17 +154,28 @@ class _SoundGrid extends StatelessWidget {
           },
           child: Container(
             decoration: BoxDecoration(
-              border: Border.all(color: isSel ? const Color(0xFF2E85FF) : Colors.grey.shade200, width: 2),
+              border: Border.all(
+                  color: isSel ? const Color(0xFF2E85FF) : Colors.grey.shade200,
+                  width: 2),
               borderRadius: BorderRadius.circular(15),
-              color: isSel ? const Color(0xFF2E85FF).withOpacity(0.05) : Theme.of(context).cardColor,
+              color: isSel
+                  ? const Color(0xFF2E85FF).withOpacity(0.05)
+                  : Theme.of(context).cardColor,
             ),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(s['icon'] as IconData, size: 30, color: isSel ? const Color(0xFF2E85FF) : Colors.grey),
+                Icon(s['icon'] as IconData,
+                    size: 30,
+                    color: isSel ? const Color(0xFF2E85FF) : Colors.grey),
                 const SizedBox(height: 8),
-                Text(s['label'] as String, style: TextStyle(fontSize: 12, color: isSel ? const Color(0xFF2E85FF) : Colors.grey)),
-                if(isSel) const Icon(Icons.check_circle, size: 16, color: Color(0xFF2E85FF))
+                Text(s['label'] as String,
+                    style: TextStyle(
+                        fontSize: 12,
+                        color: isSel ? const Color(0xFF2E85FF) : Colors.grey)),
+                if (isSel)
+                  const Icon(Icons.check_circle,
+                      size: 16, color: Color(0xFF2E85FF))
               ],
             ),
           ),
@@ -175,7 +188,7 @@ class _SoundGrid extends StatelessWidget {
 class _CustomCard extends StatelessWidget {
   final Widget child;
   final EdgeInsets padding;
-  
+
   const _CustomCard({
     required this.child,
     this.padding = const EdgeInsets.all(20),
@@ -184,8 +197,9 @@ class _CustomCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // Sesuaikan warna kartu dengan tema (Dark/Light)
-    final cardColor = Theme.of(context).cardTheme.color ?? Theme.of(context).colorScheme.surface;
-    
+    final cardColor = Theme.of(context).cardTheme.color ??
+        Theme.of(context).colorScheme.surface;
+
     return Container(
       padding: padding,
       decoration: BoxDecoration(

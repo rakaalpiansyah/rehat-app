@@ -15,12 +15,12 @@ class CreateScheduleScreen extends StatefulWidget {
 class _CreateScheduleScreenState extends State<CreateScheduleScreen> {
   // Controllers & State
   final TextEditingController _titleController = TextEditingController();
-  
+
   // Default Values
   TimeOfDay _startTime = const TimeOfDay(hour: 9, minute: 0);
   TimeOfDay _endTime = const TimeOfDay(hour: 17, minute: 0);
   List<String> _selectedDays = [];
-  
+
   double _totalFocus = 120;
   double _intervalFocus = 45;
   double _breakDuration = 5;
@@ -74,7 +74,8 @@ class _CreateScheduleScreenState extends State<CreateScheduleScreen> {
 
     // Buat Object Model Baru
     final newSchedule = ScheduleModel(
-      id: widget.scheduleToEdit?.id ?? DateTime.now().toString(), // ID Lama atau Baru
+      id: widget.scheduleToEdit?.id ??
+          DateTime.now().toString(), // ID Lama atau Baru
       title: _titleController.text,
       startTime: _formatTime(_startTime),
       endTime: _formatTime(_endTime),
@@ -93,13 +94,19 @@ class _CreateScheduleScreenState extends State<CreateScheduleScreen> {
   Widget build(BuildContext context) {
     final bool isEdit = widget.scheduleToEdit != null;
 
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FD),
+      backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
-        title: Text(isEdit ? "Edit Jadwal" : "Buat Jadwal Baru", 
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
+        title: Text(isEdit ? "Edit Jadwal" : "Buat Jadwal Baru",
+            style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 18,
+                color: theme.appBarTheme.foregroundColor)),
+        backgroundColor: theme.appBarTheme.backgroundColor ?? cs.surface,
+        foregroundColor: theme.appBarTheme.foregroundColor ?? cs.onSurface,
         elevation: 0,
         centerTitle: true,
       ),
@@ -115,17 +122,20 @@ class _CreateScheduleScreenState extends State<CreateScheduleScreen> {
                 controller: _titleController,
                 decoration: InputDecoration(
                   hintText: "cth: Jadwal Kerja Pagi",
-                  hintStyle: TextStyle(color: Colors.grey[400]),
+                  hintStyle: TextStyle(color: theme.hintColor),
                   filled: true,
-                  fillColor: Colors.grey[50],
+                  fillColor: theme.inputDecorationTheme.fillColor ??
+                      theme.colorScheme.surface,
                   contentPadding: const EdgeInsets.all(16),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Colors.grey.shade200),
+                    borderSide:
+                        BorderSide(color: theme.dividerColor.withOpacity(0.2)),
                   ),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Colors.grey.shade200),
+                    borderSide:
+                        BorderSide(color: theme.dividerColor.withOpacity(0.2)),
                   ),
                 ),
               ),
@@ -143,27 +153,39 @@ class _CreateScheduleScreenState extends State<CreateScheduleScreen> {
                   return GestureDetector(
                     onTap: () {
                       setState(() {
-                        isSelected ? _selectedDays.remove(day) : _selectedDays.add(day);
+                        isSelected
+                            ? _selectedDays.remove(day)
+                            : _selectedDays.add(day);
                       });
                     },
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 200),
-                      width: 38, height: 38,
+                      width: 38,
+                      height: 38,
                       decoration: BoxDecoration(
-                        color: isSelected ? const Color(0xFF6B4EFF) : Colors.white,
+                        color: isSelected ? cs.primary : cs.surface,
                         borderRadius: BorderRadius.circular(10),
                         border: Border.all(
-                          color: isSelected ? const Color(0xFF6B4EFF) : Colors.grey.shade300,
+                          color: isSelected
+                              ? cs.primary
+                              : theme.dividerColor.withOpacity(0.3),
                         ),
-                        boxShadow: isSelected 
-                          ? [const BoxShadow(color: Color(0x406B4EFF), blurRadius: 8, offset: Offset(0, 4))] 
-                          : [],
+                        boxShadow: isSelected
+                            ? [
+                                BoxShadow(
+                                    color: cs.primary.withOpacity(0.25),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 4))
+                              ]
+                            : [],
                       ),
                       child: Center(
                         child: Text(
                           day,
                           style: TextStyle(
-                            color: isSelected ? Colors.white : Colors.grey[600],
+                            color: isSelected
+                                ? cs.onPrimary
+                                : theme.textTheme.bodyMedium?.color,
                             fontSize: 10, // Font kecil agar muat
                             fontWeight: FontWeight.bold,
                           ),
@@ -196,11 +218,24 @@ class _CreateScheduleScreenState extends State<CreateScheduleScreen> {
               icon: Icons.tune_rounded,
               child: Column(
                 children: [
-                  _buildMiniSlider("Total Sesi Fokus", _totalFocus, 5, 300, Colors.blue, (v) => setState(() => _totalFocus = v)),
+                  _buildMiniSlider("Total Sesi Fokus", _totalFocus, 5, 300,
+                      Colors.blue, (v) => setState(() => _totalFocus = v)),
                   const SizedBox(height: 16),
-                  _buildMiniSlider("Interval Fokus", _intervalFocus, 1, 120, const Color(0xFF6B4EFF), (v) => setState(() => _intervalFocus = v)),
+                  _buildMiniSlider(
+                      "Interval Fokus",
+                      _intervalFocus,
+                      1,
+                      120,
+                      const Color(0xFF6B4EFF),
+                      (v) => setState(() => _intervalFocus = v)),
                   const SizedBox(height: 16),
-                  _buildMiniSlider("Durasi Istirahat", _breakDuration, 1, 30, Colors.pinkAccent, (v) => setState(() => _breakDuration = v)),
+                  _buildMiniSlider(
+                      "Durasi Istirahat",
+                      _breakDuration,
+                      1,
+                      30,
+                      Colors.pinkAccent,
+                      (v) => setState(() => _breakDuration = v)),
                 ],
               ),
             ),
@@ -210,24 +245,37 @@ class _CreateScheduleScreenState extends State<CreateScheduleScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: cs.surface,
                 borderRadius: BorderRadius.circular(20),
-                boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 5))],
+                boxShadow: [
+                  BoxShadow(
+                      color: Colors.black.withOpacity(
+                          theme.brightness == Brightness.dark ? 0.3 : 0.05),
+                      blurRadius: 10,
+                      offset: const Offset(0, 5))
+                ],
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Column(
+                  Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text("Aktifkan Langsung", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                      SizedBox(height: 4),
-                      Text("Jadwal akan langsung berjalan", style: TextStyle(color: Colors.grey, fontSize: 12)),
+                      Text("Aktifkan Langsung",
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                              color: theme.textTheme.titleMedium?.color)),
+                      const SizedBox(height: 4),
+                      Text("Jadwal akan langsung berjalan",
+                          style: TextStyle(
+                              color: theme.textTheme.bodySmall?.color,
+                              fontSize: 12)),
                     ],
                   ),
                   Switch.adaptive(
                     value: _activateImmediately,
-                    activeColor: const Color(0xFF6B4EFF),
+                    activeColor: cs.primary,
                     onChanged: (v) => setState(() => _activateImmediately = v),
                   ),
                 ],
@@ -241,15 +289,19 @@ class _CreateScheduleScreenState extends State<CreateScheduleScreen> {
               height: 55,
               child: ElevatedButton.icon(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF6B4EFF),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  backgroundColor: cs.primary,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16)),
                   elevation: 5,
-                  shadowColor: const Color(0xFF6B4EFF).withOpacity(0.4),
+                  shadowColor: cs.primary.withOpacity(0.4),
                 ),
                 onPressed: _saveSchedule,
-                icon: const Icon(Icons.save_rounded, color: Colors.white),
-                label: Text(isEdit ? "Simpan Perubahan" : "Simpan Jadwal", 
-                  style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                icon: Icon(Icons.save_rounded, color: cs.onPrimary),
+                label: Text(isEdit ? "Simpan Perubahan" : "Simpan Jadwal",
+                    style: TextStyle(
+                        color: cs.onPrimary,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold)),
               ),
             ),
             const SizedBox(height: 20),
@@ -261,22 +313,35 @@ class _CreateScheduleScreenState extends State<CreateScheduleScreen> {
 
   // --- WIDGET HELPERS ---
 
-  Widget _buildSectionCard({required String title, required IconData icon, required Widget child}) {
+  Widget _buildSectionCard(
+      {required String title, required IconData icon, required Widget child}) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: cs.surface,
         borderRadius: BorderRadius.circular(20),
-        boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 5))],
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withOpacity(
+                  theme.brightness == Brightness.dark ? 0.3 : 0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 5))
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(icon, size: 20, color: const Color(0xFF6B4EFF)),
+              Icon(icon, size: 20, color: cs.primary),
               const SizedBox(width: 8),
-              Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF2D3142))),
+              Text(title,
+                  style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: theme.textTheme.titleMedium?.color)),
             ],
           ),
           const SizedBox(height: 16),
@@ -289,7 +354,8 @@ class _CreateScheduleScreenState extends State<CreateScheduleScreen> {
   Widget _buildTimePicker(String label, TimeOfDay time, bool isStart) {
     return GestureDetector(
       onTap: () async {
-        final picked = await showTimePicker(context: context, initialTime: time);
+        final picked =
+            await showTimePicker(context: context, initialTime: time);
         if (picked != null) {
           setState(() {
             if (isStart) {
@@ -303,20 +369,29 @@ class _CreateScheduleScreenState extends State<CreateScheduleScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+          Text(label,
+              style: TextStyle(
+                  fontSize: 12,
+                  color: Theme.of(context).textTheme.bodySmall?.color)),
           const SizedBox(height: 8),
           Container(
             padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
             decoration: BoxDecoration(
-              color: Colors.grey[50],
+              color: Theme.of(context).colorScheme.surface,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.grey.shade200),
+              border: Border.all(
+                  color: Theme.of(context).dividerColor.withOpacity(0.2)),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(time.format(context), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                const Icon(Icons.access_time, size: 18, color: Colors.grey),
+                Text(time.format(context),
+                    style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                        color: Theme.of(context).textTheme.bodyLarge?.color)),
+                Icon(Icons.access_time,
+                    size: 18, color: Theme.of(context).iconTheme.color),
               ],
             ),
           ),
@@ -325,23 +400,32 @@ class _CreateScheduleScreenState extends State<CreateScheduleScreen> {
     );
   }
 
-  Widget _buildMiniSlider(String label, double value, double min, double max, Color color, Function(double) onChanged) {
+  Widget _buildMiniSlider(String label, double value, double min, double max,
+      Color color, Function(double) onChanged) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
     return Column(
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(label, style: TextStyle(fontSize: 13, color: Colors.grey[700])),
-            Text("${value.toInt()} menit", style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 13)),
+            Text(label,
+                style: TextStyle(
+                    fontSize: 13, color: theme.textTheme.bodyMedium?.color)),
+            Text("${value.toInt()} menit",
+                style: TextStyle(
+                    color: cs.primary,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13)),
           ],
         ),
         SliderTheme(
           data: SliderTheme.of(context).copyWith(
-            activeTrackColor: color,
-            inactiveTrackColor: color.withOpacity(0.1),
-            thumbColor: color,
+            activeTrackColor: cs.primary,
+            inactiveTrackColor: cs.primary.withOpacity(0.1),
+            thumbColor: cs.primary,
             trackHeight: 4,
-            overlayColor: color.withOpacity(0.2),
+            overlayColor: cs.primary.withOpacity(0.2),
             thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
           ),
           child: Slider(

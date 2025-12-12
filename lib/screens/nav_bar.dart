@@ -14,7 +14,7 @@ class MainNavBar extends StatefulWidget {
 
 class _MainNavBarState extends State<MainNavBar> {
   int _index = 0;
-  
+
   // Pastikan class screen ini sudah ada atau buat placeholder sementara
   final List<Widget> _screens = [
     const HomeScreen(),
@@ -29,39 +29,39 @@ class _MainNavBarState extends State<MainNavBar> {
       bottomNavigationBar: Container(
         // Dekorasi border atas tipis agar terlihat rapi (Clean UI)
         decoration: BoxDecoration(
-          color: Colors.white,
-          border: Border(top: BorderSide(color: AppTheme.textGrey.withOpacity(0.1))),
+          color: Theme.of(context).colorScheme.surface,
+          border: Border(
+              top: BorderSide(
+                  color: Theme.of(context).dividerColor.withOpacity(0.1))),
         ),
         child: BottomNavigationBar(
           currentIndex: _index,
           onTap: (i) => setState(() => _index = i),
-          
+
           // Styling Warna dari Theme.dart
-          backgroundColor: Colors.white,
+          backgroundColor: Theme.of(context).colorScheme.surface,
           elevation: 0, // Hilangkan shadow bawaan agar flat
-          selectedItemColor: AppTheme.primaryPurple, // Ungu (0xFF8B5CF6)
-          unselectedItemColor: AppTheme.textGrey,    // Abu-abu (0xFF9CA3AF)
-          
+          selectedItemColor: Theme.of(context).colorScheme.primary,
+          unselectedItemColor: Theme.of(context).textTheme.bodyMedium?.color,
+
           showUnselectedLabels: true,
           type: BottomNavigationBarType.fixed,
-          
+
           // Styling Font agar konsisten dengan Poppins
-          selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
-          unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 12),
-          
+          selectedLabelStyle:
+              const TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
+          unselectedLabelStyle:
+              const TextStyle(fontWeight: FontWeight.w500, fontSize: 12),
+
           items: const [
             BottomNavigationBarItem(
-              icon: Icon(Icons.home_filled), 
-              label: "Beranda"
-            ),
+                icon: Icon(Icons.home_filled), label: "Beranda"),
             BottomNavigationBarItem(
-              icon: Icon(Icons.calendar_today_rounded), // Icon kalender yang lebih modern
-              label: "Jadwal"
-            ),
+                icon: Icon(Icons
+                    .calendar_today_rounded), // Icon kalender yang lebih modern
+                label: "Jadwal"),
             BottomNavigationBarItem(
-              icon: Icon(Icons.settings_rounded), 
-              label: "Pengaturan"
-            ),
+                icon: Icon(Icons.settings_rounded), label: "Pengaturan"),
           ],
         ),
       ),
