@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../services/notification_service.dart'; // ✅ Pastikan Import NotificationService
 
 class SettingsProvider extends ChangeNotifier {
   // Key untuk penyimpanan
@@ -10,7 +11,7 @@ class SettingsProvider extends ChangeNotifier {
   // State awal
   bool _isDarkMode = false;
   bool _isVibrationEnabled = true;
-  int _selectedSoundIndex = 5; // Default: Ombak Pantai
+  int _selectedSoundIndex = 5; 
 
   bool get isDarkMode => _isDarkMode;
   bool get isVibrationEnabled => _isVibrationEnabled;
@@ -20,16 +21,14 @@ class SettingsProvider extends ChangeNotifier {
     _loadPreferences();
   }
 
-  // Load data dari HP saat aplikasi dibuka
   Future<void> _loadPreferences() async {
     final prefs = await SharedPreferences.getInstance();
     _isDarkMode = prefs.getBool(keyIsDark) ?? false;
     _isVibrationEnabled = prefs.getBool(keyVibration) ?? true;
     _selectedSoundIndex = prefs.getInt(keySound) ?? 5;
-    notifyListeners(); // Update UI
+    notifyListeners(); 
   }
 
-  // Ubah & Simpan Tema
   Future<void> toggleTheme(bool value) async {
     _isDarkMode = value;
     notifyListeners();
@@ -37,19 +36,30 @@ class SettingsProvider extends ChangeNotifier {
     await prefs.setBool(keyIsDark, value);
   }
 
-  // Ubah & Simpan Getaran
+  // ✅ PERBAIKAN: Update Getaran & Reschedule Alarm
   Future<void> toggleVibration(bool value) async {
     _isVibrationEnabled = value;
-    notifyListeners();
+    notifyListeners(); // Update UI Switch langsung biar responsif
+    
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(keyVibration, value);
+
+    // 🔥 PENTING: Jadwalkan ulang semua alarm agar settingan getar baru diterapkan
+    // ke alarm yang akan datang.
+    debugPrint("🔄 Rescheduling alarms due to Vibration change...");
+    await NotificationService().rescheduleAllNotificationsBackground();
   }
 
-  // Ubah & Simpan Suara
+  // ✅ PERBAIKAN: Update Suara & Reschedule Alarm
   Future<void> setSound(int index) async {
     _selectedSoundIndex = index;
-    notifyListeners();
+    notifyListeners(); // Update UI Grid langsung
+    
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(keySound, index);
+
+    // 🔥 PENTING: Jadwalkan ulang agar ID Channel suara berubah
+    debugPrint("🔄 Rescheduling alarms due to Sound change...");
+    await NotificationService().rescheduleAllNotificationsBackground();
   }
 }

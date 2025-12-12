@@ -1,7 +1,9 @@
+// File: lib/screens/active_focus_screen.dart
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:percent_indicator/circular_percent_indicator.dart';
 import '../services/active_focus_notification_service.dart';
+import '../core/theme.dart'; // Import AppTheme
 
 class ActiveFocusScreen extends StatefulWidget {
   final int totalMinutes;
@@ -29,11 +31,9 @@ class _ActiveFocusScreenState extends State<ActiveFocusScreen> with WidgetsBindi
   bool _isPaused = false;
   bool _isBreakTime = false; 
 
-  // Instance Service (Versi Sederhana)
+  // Instance Service
   final ActiveFocusNotificationService _focusNotificationService = ActiveFocusNotificationService();
   
-  // ❌ StreamSubscription Dihapus karena tidak ada tombol untuk didengar
-
   @override
   void initState() {
     super.initState();
@@ -44,8 +44,6 @@ class _ActiveFocusScreenState extends State<ActiveFocusScreen> with WidgetsBindi
     _remainingIntervalSeconds = widget.intervalMinutes * 60;
     _remainingBreakSeconds = widget.breakMinutes * 60;
 
-    // ❌ _initNotificationListener() Dihapus
-
     _startTimer();
   }
 
@@ -53,11 +51,8 @@ class _ActiveFocusScreenState extends State<ActiveFocusScreen> with WidgetsBindi
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _timer?.cancel();
-    // ❌ _notificationSubscription?.cancel() Dihapus
     super.dispose();
   }
-
-  // ❌ _handleSnooze dan _handleDismiss Dihapus total
 
   void _startTimer() {
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
@@ -91,7 +86,6 @@ class _ActiveFocusScreenState extends State<ActiveFocusScreen> with WidgetsBindi
       _isBreakTime = true;
       _remainingBreakSeconds = widget.breakMinutes * 60; 
     });
-    // Panggil notifikasi tanpa parameter nextDuration
     _focusNotificationService.showInstantFocusNotification(
       "Saatnya Rehat! ☕", 
       "Fokus ${widget.intervalMinutes} menit selesai. Istirahat dulu!",
@@ -143,9 +137,23 @@ class _ActiveFocusScreenState extends State<ActiveFocusScreen> with WidgetsBindi
   
   @override
   Widget build(BuildContext context) {
-    final Color primaryColor = _isBreakTime ? Colors.green : const Color(0xFF8B5CF6);
-    final Color secondaryColor = _isBreakTime ? Colors.green.shade50 : const Color(0xFFF3F0FF);
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    // Tentukan Warna Berdasarkan Mode
+    final Color primaryColor = _isBreakTime ? Colors.green : AppTheme.primaryPurple;
+    
+    // Warna secondary (background progress/card icon) menyesuaikan Dark Mode
+    final Color secondaryColor = _isBreakTime 
+        ? (isDark ? Colors.green.withOpacity(0.2) : Colors.green.shade50) 
+        : (isDark ? AppTheme.primaryPurple.withOpacity(0.2) : const Color(0xFFF3F0FF));
+
     final String statusText = _isBreakTime ? "Mode Istirahat" : "Mode Fokus";
+    
+    // Warna Teks
+    final Color textColor = isDark ? Colors.white : Colors.black;
+    final Color subTextColor = isDark ? Colors.grey[400]! : Colors.grey;
+
     double percent = 0.0;
     if (_totalSecondsInitial > 0) {
       percent = 1.0 - (_remainingTotalSeconds / _totalSecondsInitial);
@@ -153,14 +161,17 @@ class _ActiveFocusScreenState extends State<ActiveFocusScreen> with WidgetsBindi
     percent = percent.clamp(0.0, 1.0);
 
     return Scaffold(
-       backgroundColor: Colors.white,
+       backgroundColor: theme.scaffoldBackgroundColor, // Gunakan background theme
        appBar: AppBar(
-         leading: BackButton(color: Colors.black, onPressed: () { _showExitConfirmation(); }),
+         leading: BackButton(
+           color: textColor, 
+           onPressed: () { _showExitConfirmation(); }
+         ),
          title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-             const Text("Sesi Aktif", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 16)),
+             Text("Sesi Aktif", style: TextStyle(color: textColor, fontWeight: FontWeight.bold, fontSize: 16)),
              Text(statusText, style: TextStyle(color: primaryColor, fontSize: 12, fontWeight: FontWeight.bold)),
          ]),
-         backgroundColor: Colors.white,
+         backgroundColor: Colors.transparent, // Transparan agar ikut scaffold
          elevation: 0,
        ),
        body: Padding(
@@ -168,6 +179,8 @@ class _ActiveFocusScreenState extends State<ActiveFocusScreen> with WidgetsBindi
         child: Column(
           children: [
             const Spacer(),
+            
+            // --- CIRCULAR INDICATOR ---
             CircularPercentIndicator(
               radius: 120.0,
               lineWidth: 15.0,
@@ -185,7 +198,7 @@ class _ActiveFocusScreenState extends State<ActiveFocusScreen> with WidgetsBindi
                   ),
                   Text(
                     _isBreakTime ? "Waktu Rehat" : "Total Tersisa",
-                    style: const TextStyle(color: Colors.grey, fontSize: 14),
+                    style: TextStyle(color: subTextColor, fontSize: 14),
                   ),
                 ],
               ),
@@ -195,14 +208,22 @@ class _ActiveFocusScreenState extends State<ActiveFocusScreen> with WidgetsBindi
               animation: true,
               animateFromLastPercent: true,
             ),
+            
             const Spacer(),
-            // Kartu Info Detail
+            
+            // --- KARTU INFO DETAIL ---
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: Colors.white, 
+                color: theme.colorScheme.surface, // Warna kartu adaptif
                 borderRadius: BorderRadius.circular(20), 
-                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 20, offset: const Offset(0,10))]
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(isDark ? 0.3 : 0.05), 
+                    blurRadius: 20, 
+                    offset: const Offset(0,10)
+                  )
+                ]
               ),
               child: Row(
                 children: [
@@ -224,13 +245,13 @@ class _ActiveFocusScreenState extends State<ActiveFocusScreen> with WidgetsBindi
                       children: [
                         Text(
                           _isBreakTime ? "Lanjut Fokus Dalam" : "Rehat Berikutnya", 
-                          style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87)
+                          style: TextStyle(fontWeight: FontWeight.bold, color: textColor)
                         ), 
                         Text(
                           _isBreakTime 
                             ? "${_formatTime(_remainingBreakSeconds)} lagi"
                             : "${_formatTime(_remainingIntervalSeconds)} lagi", 
-                          style: const TextStyle(fontSize: 12, color: Colors.grey)
+                          style: TextStyle(fontSize: 12, color: subTextColor)
                         )
                       ]
                     )
@@ -238,16 +259,18 @@ class _ActiveFocusScreenState extends State<ActiveFocusScreen> with WidgetsBindi
                 ],
               ),
             ),
+            
             const SizedBox(height: 40),
-            // Tombol Kontrol
+            
+            // --- TOMBOL KONTROL ---
             Row(children: [
                 Expanded(child: ElevatedButton(
                   onPressed: () => setState(() => _isPaused = !_isPaused), 
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.white, 
-                    foregroundColor: Colors.black, 
+                    backgroundColor: theme.colorScheme.surface, // Adaptif
+                    foregroundColor: textColor, 
                     elevation: 0, 
-                    side: const BorderSide(color: Colors.grey),
+                    side: BorderSide(color: isDark ? Colors.grey[700]! : Colors.grey),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
                     padding: const EdgeInsets.symmetric(vertical: 16)
                   ), 
@@ -257,7 +280,7 @@ class _ActiveFocusScreenState extends State<ActiveFocusScreen> with WidgetsBindi
                 Expanded(child: ElevatedButton(
                   onPressed: _showExitConfirmation,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFFFE4E6), 
+                    backgroundColor: isDark ? Colors.red.withOpacity(0.15) : const Color(0xFFFFE4E6), 
                     foregroundColor: Colors.red, 
                     elevation: 0, 
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),

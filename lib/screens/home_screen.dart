@@ -1,5 +1,6 @@
 // File: lib/screens/home_screen.dart
 import 'package:flutter/material.dart';
+import '../core/theme.dart'; // Pastikan AppTheme terimport
 import 'active_focus_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -19,12 +20,16 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
+    
+    // Helper untuk Dark Mode pada warna "Light" (Background icon/badge)
+    bool isDark = theme.brightness == Brightness.dark;
+
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       body: Column(
         children: [
           // 1. HEADER (Tetap Tinggi 260)
-          _buildHeaderSection(),
+          _buildHeaderSection(isDark),
 
           // 2. CONTENT SECTION (Dibuat Fleksibel)
           Expanded(
@@ -33,13 +38,8 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Column(
                 children: [
                   const SizedBox(height: 16),
-
-                  // BAGIAN YANG BISA DI-SCROLL
-                  // Kita bungkus konten kartu dengan Expanded + SingleChildScrollView
-                  // Agar jika layar pendek, user bisa scroll ke bawah.
                   Expanded(
                     child: SingleChildScrollView(
-                      // BouncingScrollPhysics memberi efek pantul (bagus di iOS/Android modern)
                       physics: const BouncingScrollPhysics(),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -63,8 +63,10 @@ class _HomeScreenState extends State<HomeScreen> {
                             min: 30,
                             max: 180,
                             unit: "m",
-                            primaryColor: const Color(0xFF7F56D9),
-                            lightColor: const Color(0xFFF4EBFF),
+                            primaryColor: AppTheme.sessionColorPrimary,
+                            lightColor: isDark 
+                                ? AppTheme.sessionColorPrimary.withOpacity(0.15) 
+                                : AppTheme.sessionColorLight,
                             onChanged: (v) => setState(() => totalFocus = v),
                           ),
 
@@ -79,8 +81,10 @@ class _HomeScreenState extends State<HomeScreen> {
                             min: 1,
                             max: 60,
                             unit: "m",
-                            primaryColor: const Color(0xFF2E90FA),
-                            lightColor: const Color(0xFFEFF8FF),
+                            primaryColor: AppTheme.intervalColorPrimary,
+                            lightColor: isDark 
+                                ? AppTheme.intervalColorPrimary.withOpacity(0.15) 
+                                : AppTheme.intervalColorLight,
                             onChanged: (v) => setState(() => intervalFocus = v),
                           ),
 
@@ -95,53 +99,40 @@ class _HomeScreenState extends State<HomeScreen> {
                             min: 1,
                             max: 15,
                             unit: "m",
-                            primaryColor: const Color(0xFFF63D68),
-                            lightColor: const Color(0xFFFFF0F3),
+                            primaryColor: AppTheme.breakColorPrimary,
+                            lightColor: isDark 
+                                ? AppTheme.breakColorPrimary.withOpacity(0.15) 
+                                : AppTheme.breakColorLight,
                             onChanged: (v) => setState(() => breakDuration = v),
                           ),
 
-                          // Tambahan padding di bawah agar kartu terakhir tidak kepotong
                           const SizedBox(height: 20),
                         ],
                       ),
                     ),
                   ),
 
-                  // 3. TOMBOL MULAI (Tetap di Bawah)
-                  // Saya hapus Spacer() dan letakkan tombol di luar ScrollView
-                  // agar tombol selalu terlihat di bawah layar.
+                  // 3. TOMBOL MULAI (Sekarang menggunakan GradientButton)
                   const SizedBox(height: 10),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 56,
-                    child: ElevatedButton(
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => ActiveFocusScreen(
-                              totalMinutes: totalFocus.toInt(),
-                              intervalMinutes: intervalFocus.toInt(),
-                              breakMinutes: breakDuration.toInt(),
-                            ),
+                  _GradientButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => ActiveFocusScreen(
+                            totalMinutes: totalFocus.toInt(),
+                            intervalMinutes: intervalFocus.toInt(),
+                            breakMinutes: breakDuration.toInt(),
                           ),
-                        );
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: cs.primary,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(18),
                         ),
-                        elevation: 5,
-                        shadowColor: cs.primary.withOpacity(0.4),
-                      ),
-                      child: Text(
-                        "Mulai Sekarang",
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: cs.onPrimary,
-                        ),
+                      );
+                    },
+                    child: Text(
+                      "Mulai Sekarang",
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
                       ),
                     ),
                   ),
@@ -156,26 +147,22 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // === HEADER ===
-  Widget _buildHeaderSection() {
+  // === HEADER (Dipindah ke luar build) ===
+  Widget _buildHeaderSection(bool isDark) {
     final theme = Theme.of(context);
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFF4361EE), Color(0xFF7209B7)],
-        ),
+        // Menggunakan Gradient dari AppTheme
+        gradient: AppTheme.headerGradient,
         borderRadius: const BorderRadius.only(
           bottomLeft: Radius.circular(30),
           bottomRight: Radius.circular(30),
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black
-                .withOpacity(theme.brightness == Brightness.dark ? 0.3 : 0.25),
+            color: Colors.black.withOpacity(isDark ? 0.3 : 0.25),
             blurRadius: 20,
             offset: const Offset(0, 10),
           ),
@@ -202,7 +189,45 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-// === KARTU KONFIGURASI (UKURAN BESAR/NORMAL) ===
+// === WIDGET BARU: TOMBOL DENGAN GRADIENT ===
+class _GradientButton extends StatelessWidget {
+  final VoidCallback onPressed;
+  final Widget child;
+
+  const _GradientButton({required this.onPressed, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      height: 56,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18),
+        // Menggunakan Gradient yang sama dengan Header
+        gradient: AppTheme.headerGradient, 
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF7209B7).withOpacity(0.4),
+            blurRadius: 10,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onPressed,
+          borderRadius: BorderRadius.circular(18),
+          child: Center(
+            child: child,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// === KARTU KONFIGURASI (Tidak Berubah) ===
 class _ConfigCard extends StatelessWidget {
   final IconData icon;
   final String title;
@@ -232,16 +257,16 @@ class _ConfigCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+
     return Container(
-      // Padding diperbesar ke 20 agar kartu terlihat 'gemuk' & lega
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
       decoration: BoxDecoration(
         color: cs.surface,
-        borderRadius: BorderRadius.circular(24), // Radius lebih smooth
+        borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: Colors.black
-                .withOpacity(theme.brightness == Brightness.dark ? 0.3 : 0.06),
+            color: Colors.black.withOpacity(isDark ? 0.3 : 0.06),
             blurRadius: 15,
             offset: const Offset(0, 5),
           ),
@@ -259,8 +284,7 @@ class _ConfigCard extends StatelessWidget {
                   color: lightColor,
                   borderRadius: BorderRadius.circular(14),
                 ),
-                child: Icon(icon,
-                    color: primaryColor, size: 28), // Icon diperbesar
+                child: Icon(icon, color: primaryColor, size: 28),
               ),
               const SizedBox(width: 16),
 
@@ -271,13 +295,14 @@ class _ConfigCard extends StatelessWidget {
                   children: [
                     Text(title,
                         style: theme.textTheme.titleMedium?.copyWith(
-                            fontSize: 16, // Font judul diperbesar
+                            fontSize: 16,
                             fontWeight: FontWeight.bold,
-                            color: theme.textTheme.titleMedium?.color)),
+                            color: isDark ? Colors.white : AppTheme.textDark)),
                     const SizedBox(height: 2),
                     Text(subtitle,
                         style: theme.textTheme.bodySmall?.copyWith(
-                            fontSize: 13)), // Font subtitle diperbesar
+                            fontSize: 13,
+                            color: AppTheme.textGrey)),
                   ],
                 ),
               ),
@@ -295,25 +320,25 @@ class _ConfigCard extends StatelessWidget {
                   style: TextStyle(
                       color: primaryColor,
                       fontWeight: FontWeight.bold,
-                      fontSize: 14), // Font nilai diperbesar
+                      fontSize: 14),
                 ),
               ),
             ],
           ),
 
-          const SizedBox(height: 12), // Jarak ke slider lebih lega
+          const SizedBox(height: 12),
 
           // Slider
           SliderTheme(
             data: SliderTheme.of(context).copyWith(
               activeTrackColor: primaryColor,
               inactiveTrackColor: lightColor,
-              trackHeight: 6.0, // Track slider lebih tebal
+              trackHeight: 6.0,
               thumbColor: Colors.white,
               thumbShape: const RoundSliderThumbShape(
-                  enabledThumbRadius: 10.0,
-                  elevation: 3), // Tombol geser lebih besar
+                  enabledThumbRadius: 10.0, elevation: 3),
               overlayShape: const RoundSliderOverlayShape(overlayRadius: 20.0),
+              overlayColor: primaryColor.withOpacity(0.2), 
             ),
             child: Slider(
               value: value,

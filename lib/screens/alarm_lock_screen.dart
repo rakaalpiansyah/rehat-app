@@ -4,7 +4,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../services/notification_service.dart';
-import 'schedule_screen.dart'; // Untuk ambil ScheduleTheme
+import '../core/theme.dart'; // Ganti dari 'schedule_screen.dart' ke 'core/theme.dart'
 import 'package:flutter/services.dart';
 
 class AlarmLockScreen extends StatefulWidget {
@@ -75,18 +75,22 @@ class _AlarmLockScreenState extends State<AlarmLockScreen> with SingleTickerProv
   // --- ACTIONS ---
 
   // ✅ LOGIKA NAVIGASI BERSIH
-void _closeLockScreen() async {
+  void _closeLockScreen() async {
     NotificationService.isLockScreenOpen = false; 
 
     try {
       // Panggil kode native Java
       await platform.invokeMethod('moveTaskToBack'); 
     } on PlatformException catch (e) {
+      // ignore: avoid_print
       print("Gagal memindahkan task ke belakang: ${e.message}");
       // Fallback: tutup secara normal jika native gagal
-      Navigator.of(context).pop(); 
+      if (mounted) {
+        Navigator.of(context).pop(); 
+      }
     }
-}
+  }
+
   void _onSnooze() {
     NotificationService().triggerActionManual('snooze', widget.payload);
     _closeLockScreen(); // ✅ Panggil fungsi tutup yang baru
@@ -150,7 +154,9 @@ void _closeLockScreen() async {
                   Column(
                     children: [
                       Text(_timeString, style: const TextStyle(color: Colors.white, fontSize: 80, fontWeight: FontWeight.w200, height: 1)),
-                      Text(_dateString, style: const TextStyle(color: ScheduleTheme.primaryPurple, fontSize: 18, fontWeight: FontWeight.bold)),
+                      Text(_dateString, 
+                        // Ganti ScheduleTheme.primaryPurple
+                        style: const TextStyle(color: AppTheme.primaryPurple, fontSize: 18, fontWeight: FontWeight.bold)), 
                     ],
                   ),
                   
@@ -176,7 +182,7 @@ void _closeLockScreen() async {
                           )
                         else 
                           const SizedBox(width: 80), 
-  
+              
                         // KANAN: TOMBOL SELESAI
                         GestureDetector(
                           onTap: _onDismiss,
@@ -186,9 +192,10 @@ void _closeLockScreen() async {
                                Container(
                                  padding: const EdgeInsets.all(30), 
                                  decoration: const BoxDecoration(
-                                   color: ScheduleTheme.accentPink, 
-                                   shape: BoxShape.circle, 
-                                   boxShadow: [BoxShadow(color: Color(0x66EC4899), blurRadius: 30, spreadRadius: 5)]
+                                    // Ganti ScheduleTheme.accentPink
+                                    color: AppTheme.accentPink, 
+                                    shape: BoxShape.circle, 
+                                    boxShadow: [BoxShadow(color: Color(0x66EC4899), blurRadius: 30, spreadRadius: 5)]
                                  ), 
                                  child: const Icon(Icons.check_rounded, color: Colors.white, size: 40)
                                ),

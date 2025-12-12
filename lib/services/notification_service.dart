@@ -1,10 +1,9 @@
 // File: lib/services/notification_service.dart
 import 'dart:io';
 import 'dart:async';
-import 'dart:typed_data';
+import 'dart:typed_data'; // Untuk Int64List
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:flutter_ringtone_player/flutter_ringtone_player.dart'; // ✅ Import Ringtone
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -43,10 +42,8 @@ class NotificationService {
   static String? _lastProcessedPayload;
   static DateTime? _lastProcessedTime;
 
-  // ✅ ID V8 (Agar reset)
-  static const String channelId = 'rehat_alarm_system_fix_v8';
-  static const String channelName = 'Rehat Alarm (Stable)';
-  static const String channelDesc = 'Alarm persistent dengan suara sistem';
+  // ✅ Channel ID V15 (Versi Baru untuk Reset Settingan)
+  static const String channelId = 'rehat_alarm_fix_v15';
 
   final FlutterLocalNotificationsPlugin notificationsPlugin = FlutterLocalNotificationsPlugin();
 
@@ -79,47 +76,17 @@ class NotificationService {
     await _autoRequestPermissions();
   }
 
-  // ✅ HELPER SUARA (BARU)
-  void _playAlarmSound() {
-    debugPrint("🔊 Memulai Ringtone Player...");
-    FlutterRingtonePlayer().playAlarm(
-      looping: true, 
-      volume: 1.0,   
-      asAlarm: true, 
-    );
-  }
-
-  void _stopAlarmSound() {
-    debugPrint("🔇 Menghentikan Ringtone Player...");
-    FlutterRingtonePlayer().stop();
-  }
-
-  // ✅ UPDATE NAVIGASI
   void _navigateToLockScreen(String payload) {
-   if (isLockScreenOpen) {
-      debugPrint("⛔ Lock Screen sudah aktif.");
-      return; 
-    }
-    
-    // Mulai suara alarm saat layar kunci muncul
-    _playAlarmSound();
-
+   if (isLockScreenOpen) return;
     isLockScreenOpen = true; 
-    Future.delayed(Duration.zero, () {
-      navigatorKey.currentState?.push(
-        MaterialPageRoute(builder: (_) => AlarmLockScreen(payload: payload)),
-      ).then((_) {
-        isLockScreenOpen = false; 
-        _stopAlarmSound(); // Matikan suara jika user back
-      });
+    navigatorKey.currentState?.push(
+      MaterialPageRoute(builder: (_) => AlarmLockScreen(payload: payload)),
+    ).then((_) {
+      isLockScreenOpen = false; 
     });
   }
 
-  // ✅ UPDATE ACTION LOGIC
   Future<void> handleActionLogic(String actionId, String? payload) async {
-    // Hentikan suara segera saat user berinteraksi
-    _stopAlarmSound();
-
     if (payload == null) return;
 
     final now = DateTime.now();
@@ -143,7 +110,6 @@ class NotificationService {
     final int nextDuration = int.tryParse(parts[5]) ?? 0;
 
     if (actionId == 'dismiss') {
-      debugPrint("👉 USER MEMILIH DISMISS");
       await cancelNotification(snoozeIdOffset + notifId);
       await cancelNotification(notifId);
 
@@ -154,7 +120,6 @@ class NotificationService {
       }
     } 
     else if (actionId == 'snooze') {
-      debugPrint("👉 USER MEMILIH SNOOZE");
       if (snoozeCount < maxSnoozeCount) {
         await _addDelayToDatabase(dbId, 5);
         await rescheduleAllNotificationsBackground();
@@ -162,24 +127,33 @@ class NotificationService {
     }
   }
   
-  // ✅ UPDATE CANCEL
   Future<void> cancelNotification(int id) async {
-    _stopAlarmSound();
     await notificationsPlugin.cancel(id);
   }
 
   Future<void> cancelAllNotifications() async {
-    _stopAlarmSound();
     await notificationsPlugin.cancelAll();
   }
 
-  // ✅ UPDATE DETAIL (SUARA KUSTOM + CHANNEL DINAMIS)
+  // ✅ LOGIC UTAMA: Menghilangkan FLAG INSISTENT
   Future<NotificationDetails> _details({required bool showSnooze}) async {
     final prefs = await SharedPreferences.getInstance();
     final int soundIndex = prefs.getInt('selected_sound_index') ?? 5; 
+    final bool isVibrationEnabled = prefs.getBool('vibration_enabled') ?? true;
 
-    String soundFileName = 'sound$soundIndex'; 
-    String dynamicChannelId = 'rehat_alarm_sound_v8_$soundIndex';
+    AndroidNotificationSound? androidSound;
+    
+    if (soundIndex == 0) {
+      // Index 0: URI System Alarm
+      androidSound = const UriAndroidNotificationSound('content://settings/system/alarm_alert');
+    } else {
+      // Custom: File raw
+      androidSound = RawResourceAndroidNotificationSound('sound$soundIndex');
+    }
+
+    String vibStatus = isVibrationEnabled ? 'vibOn' : 'vibOff';
+    // ✅ ID Channel V15
+    String dynamicChannelId = 'rehat_v15_idx${soundIndex}_$vibStatus'; 
 
     List<AndroidNotificationAction> actions = [
       const AndroidNotificationAction('dismiss', 'Matikan / Mulai', showsUserInterface: false, cancelNotification: true),
@@ -191,21 +165,30 @@ class NotificationService {
     return NotificationDetails(
       android: AndroidNotificationDetails(
         dynamicChannelId, 
-        'Rehat Alarm ($soundFileName)', 
-        channelDescription: 'Alarm fokus dengan suara kustom',
+        soundIndex == 0 ? 'Rehat (System Alarm)' : 'Rehat (Custom Sound)', 
+        channelDescription: 'Alarm fokus',
         importance: Importance.max, 
         priority: Priority.max, 
-        ongoing: true,
-        autoCancel: false,
-        additionalFlags: Int32List.fromList(<int>[4]), // Insistent
-        visibility: NotificationVisibility.secret, 
+        ongoing: true, // Tidak bisa di-swipe kiri/kanan
+        autoCancel: false, // Tidak hilang saat diklik
+        
+        // ✅ PERUBAHAN UTAMA: additionalFlags: Int32List.fromList(<int>[4]) DIHAPUS.
+        // Kita mengandalkan ongoing: true dan category: call untuk daya tahan suara.
+        
+        visibility: NotificationVisibility.public, 
         
         playSound: true, 
-        sound: RawResourceAndroidNotificationSound(soundFileName),
-        audioAttributesUsage: AudioAttributesUsage.alarm,
+        sound: androidSound,
         
+        category: AndroidNotificationCategory.call, // Kategori Call
+        
+        audioAttributesUsage: AudioAttributesUsage.alarm, // Volume Alarm
+        
+        // Logic Getar
+        enableVibration: isVibrationEnabled,
+        vibrationPattern: isVibrationEnabled ? null : Int64List.fromList([0]),
+
         fullScreenIntent: true, 
-        category: AndroidNotificationCategory.alarm,
         actions: actions,
       ),
       iOS: const DarwinNotificationDetails(
@@ -220,14 +203,12 @@ class NotificationService {
     final tz.TZDateTime nextTime = now.add(Duration(minutes: durationMinutes));
     
     int newId = sourceId + 1; 
-    
     final details = await _details(showSnooze: true);
 
     await notificationsPlugin.zonedSchedule(
       newId, title, body, nextTime, details,
       androidScheduleMode: AndroidScheduleMode.alarmClock,
       payload: "$newId|none|$title|$body|0|0",
-      // ❌ uiLocalNotificationDateInterpretation SUDAH DIHAPUS
     );
   }
 
@@ -261,14 +242,13 @@ class NotificationService {
          
          TimeOfDay openingTimeObj = _minutesToTime(originalStartMin);
          await scheduleWeeklyNotification(
-            id: globalIdCounter++, dbId: item.id, title: "Selamat Beraktivitas! 💪", 
-            body: "Waktunya mulai sesi ${item.title}.", time: openingTimeObj, 
-            dayOfWeek: dayOfWeek, nextDuration: item.intervalDuration
+           id: globalIdCounter++, dbId: item.id, title: "Selamat Beraktivitas! 💪", 
+           body: "Waktunya mulai sesi ${item.title}.", time: openingTimeObj, 
+           dayOfWeek: dayOfWeek, nextDuration: item.intervalDuration
          );
 
          int trackingMin = originalStartMin;
          while (trackingMin < fixedEndMin) {
-           // REHAT
            int originalRehatStart = trackingMin + item.intervalDuration;
            if (originalRehatStart >= fixedEndMin) break;
 
@@ -286,7 +266,6 @@ class NotificationService {
            );
            trackingMin = originalRehatStart;
 
-           // FOKUS
            int originalFokusStart = trackingMin + item.breakDuration;
            if (originalFokusStart >= fixedEndMin) break;
 
@@ -314,7 +293,6 @@ class NotificationService {
     }
   }
   
-  // Helpers
   int _timeToMinutes(TimeOfDay time) => time.hour * 60 + time.minute;
   TimeOfDay _minutesToTime(int totalMinutes) {
     int normalizedMinutes = totalMinutes % 1440;
@@ -363,7 +341,6 @@ class NotificationService {
       androidScheduleMode: AndroidScheduleMode.alarmClock,
       matchDateTimeComponents: DateTimeComponents.dayOfWeekAndTime,
       payload: "$id|$dbId|$title|$body|0|$nextDuration", 
-      // ❌ uiLocalNotificationDateInterpretation SUDAH DIHAPUS
     );
   }
   
