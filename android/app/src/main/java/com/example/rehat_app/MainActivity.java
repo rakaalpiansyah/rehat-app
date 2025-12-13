@@ -1,15 +1,16 @@
 // File: android/app/src/main/java/com/example/rehat_app/MainActivity.java
 
-package com.example.rehat_app; // Pastikan nama package ini sesuai dengan punya Anda
+package com.example.rehat_app; // ⚠️ Pastikan package ini sesuai dengan struktur folder Anda
 
+import android.os.Build; // Tambahan import untuk cek versi Android
 import androidx.annotation.NonNull;
 import io.flutter.embedding.android.FlutterActivity;
 import io.flutter.embedding.engine.FlutterEngine;
 import io.flutter.plugin.common.MethodChannel;
 
 public class MainActivity extends FlutterActivity {
-    // 1. Definisikan Channel Name (Harus sama dengan di Dart)
-    private static final String CHANNEL = "com.example.rehat_app/app_control";
+    // 1. Definisikan Channel Name (Harus SAMA PERSIS dengan di Dart)
+    private static final String CHANNEL = "com.rehat/task_manager";
 
     @Override
     public void configureFlutterEngine(@NonNull FlutterEngine flutterEngine) {
@@ -18,16 +19,17 @@ public class MainActivity extends FlutterActivity {
         new MethodChannel(flutterEngine.getDartExecutor().getBinaryMessenger(), CHANNEL)
             .setMethodCallHandler(
                 (call, result) -> {
-                    // 2. Handle pemanggilan 'moveTaskToBack' dari Flutter
-                    if (call.method.equals("moveTaskToBack")) {
-                        // Panggil fungsi native Android untuk memindahkan aplikasi ke latar belakang
-                        boolean success = moveTaskToBack(true);
-                        if (success) {
-                            result.success(true);
+                    // 2. Handle pemanggilan 'finishAndRemoveTask' dari Flutter
+                    if (call.method.equals("finishAndRemoveTask")) {
+                        
+                        // Logika untuk Menutup App & Menghapus dari History
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                            finishAndRemoveTask(); // ✅ Ini yang menghapus dari Recent Apps
                         } else {
-                            // moveTaskToBack jarang gagal, tapi kita siapkan error handling
-                            result.error("UNAVAILABLE", "moveTaskToBack failed", null);
+                            finish(); // Fallback untuk Android lama
                         }
+                        
+                        result.success(null);
                     } else {
                         result.notImplemented();
                     }

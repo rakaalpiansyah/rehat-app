@@ -47,7 +47,11 @@ dependencies:
   sqflite: ^2.3.0
   path: ^1.9.0
   flutter_ringtone_player: ^4.0.0
-
+  flutter_launcher_icons: ^0.14.4
+  flutter_native_splash: ^2.3.1 
+  vibration: ^3.1.4
+  device_info_plus: ^12.3.0
+  android_intent_plus: ^5.0.0
 
 dev_dependencies:
   flutter_test:
@@ -70,6 +74,14 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+  assets:
+    - assets/rehat.png
+    - assets/sounds/
+    - assets/sounds/sound1.mp3
+    - assets/sounds/sound2.mp3
+    - assets/sounds/sound3.mp3
+    - assets/sounds/sound4.mp3
+    - assets/sounds/sound5.mp3
 
   # To add assets to your application, add an assets section, like this:
   # assets:
@@ -101,3 +113,26 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+flutter_launcher_icons:
+  android: "launcher_icon"
+  ios: true
+  image_path: "assets/rehat.png" 
+  min_sdk_android: 21 # Opsional, sesuaikan kebutuhan
+  adaptive_icon_background: "#ffffff" # Warna background jika icon adaptif (Android)
+  adaptive_icon_foreground: "assets/rehat.png"
+
+flutter_native_splash:
+  # Konfigurasi Default (Light Mode)
+  color: "#FFFFFF" # Background Light Mode (Putih/Warna terang)
+  image: "assets/rehat.png" # Gambar Splash untuk Light Mode
+
+  # Konfigurasi Dark Mode
+  color_dark: "#212121" # Background Dark Mode (Hitam pekat/Warna gelap)
+  image_dark: "assets/rehat.png" # Gambar Splash untuk Dark Mode
+
+  # Konfigurasi Android 12 (tetap mengikuti Dark/Light)
+  android_12:
+    image: "assets/rehat.png"
+    color: "#FFFFFF"
+    image_dark: "assets/rehat.png"
+    color_dark: "#212121"
