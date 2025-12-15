@@ -2,10 +2,22 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/settings_provider.dart';
-import '../core/theme.dart'; 
+import '../core/theme.dart';
 
-class SettingsScreen extends StatelessWidget {
+class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
+
+  @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
+  @override
+  void dispose() {
+    // Pastikan preview suara berhenti saat meninggalkan layar ini
+    context.read<SettingsProvider>().stopPreviewSound();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -14,8 +26,8 @@ class SettingsScreen extends StatelessWidget {
 
     // Warna Background Icon (Dark Mode) - Pengganti withOpacity
     // 0.2 * 255 = 51 (Hex: 0x33)
-    final iconBgDarkBlue = const Color(0x331E88E5); 
-    final iconBgDarkPurple = const Color(0x33BA68C8); 
+    final iconBgDarkBlue = const Color(0x331E88E5);
+    final iconBgDarkPurple = const Color(0x33BA68C8);
 
     return Scaffold(
       appBar: AppBar(
@@ -229,15 +241,13 @@ class _SoundGrid extends StatelessWidget {
       itemBuilder: (ctx, i) {
         final s = sounds[i];
         bool isSel = i == selectedIndex;
-        
-        final borderColor = isSel 
-            ? selectedColor 
+
+        final borderColor = isSel
+            ? selectedColor
             : (isDark ? Colors.grey[700]! : Colors.grey[200]!);
 
         // Pengganti withOpacity(0.1) -> withAlpha(25)
-        final bgColor = isSel 
-            ? selectedColor.withAlpha(25) 
-            : theme.cardColor;
+        final bgColor = isSel ? selectedColor.withAlpha(25) : theme.cardColor;
 
         final iconLabelColor = isSel ? selectedColor : Colors.grey[600];
 
@@ -261,7 +271,8 @@ class _SoundGrid extends StatelessWidget {
                 if (isSel)
                   Padding(
                     padding: const EdgeInsets.only(top: 4.0),
-                    child: Icon(Icons.check_circle, size: 16, color: selectedColor),
+                    child: Icon(Icons.check_circle,
+                        size: 16, color: selectedColor),
                   )
               ],
             ),
@@ -287,13 +298,12 @@ class _CustomCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cardColor = theme.cardTheme.color ?? theme.colorScheme.surface;
-    
+
     // Shadow Colors (Hex Alpha)
     // Dark Mode: Opacity 0.2 -> 0x33
     // Light Mode: Opacity 0.05 -> 0x0D
-    final shadowColor = isDark 
-        ? const Color(0x33000000) 
-        : const Color(0x0D000000);
+    final shadowColor =
+        isDark ? const Color(0x33000000) : const Color(0x0D000000);
 
     return Container(
       padding: padding,

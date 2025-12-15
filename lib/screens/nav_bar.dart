@@ -1,10 +1,12 @@
 // File: lib/screens/nav_bar.dart
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'home_screen.dart';
 import 'schedule_screen.dart';
 import 'settings_screen.dart';
 import '../core/theme.dart';
 import '../services/permission_helper.dart'; // ✅ 1. Import Permission Helper
+import '../providers/settings_provider.dart';
 
 class MainNavBar extends StatefulWidget {
   const MainNavBar({super.key});
@@ -25,11 +27,11 @@ class _MainNavBarState extends State<MainNavBar> {
   @override
   void initState() {
     super.initState();
-    
+
     // ✅ 2. LOGIKA OTOMATIS: Cek Izin HP (Xiaomi/Samsung/Oppo/dll)
     // Dijalankan setelah frame pertama selesai agar context siap
     WidgetsBinding.instance.addPostFrameCallback((_) {
-       PermissionHelper.checkAndRequestSpecialPermissions(context);
+      PermissionHelper.checkAndRequestSpecialPermissions(context);
     });
   }
 
@@ -72,17 +74,23 @@ class _MainNavBarState extends State<MainNavBar> {
         ),
         child: BottomNavigationBar(
           currentIndex: _index,
-          onTap: (i) => setState(() => _index = i),
+          onTap: (i) {
+            // Hentikan preview suara jika keluar dari tab Pengaturan
+            if (_index == 2 && i != 2) {
+              context.read<SettingsProvider>().stopPreviewSound();
+            }
+            setState(() => _index = i);
+          },
           backgroundColor: theme.colorScheme.surface,
           elevation: 0,
-          
+
           // Warna Adaptif
           selectedItemColor: selectedTextColor,
           unselectedItemColor: unselectedColor,
-          
+
           showUnselectedLabels: true,
           type: BottomNavigationBarType.fixed,
-          
+
           selectedLabelStyle: const TextStyle(
             fontWeight: FontWeight.w600,
             fontSize: 12,
@@ -91,7 +99,7 @@ class _MainNavBarState extends State<MainNavBar> {
             fontWeight: FontWeight.w500,
             fontSize: 12,
           ),
-          
+
           items: [
             // ITEM 1: BERANDA
             BottomNavigationBarItem(
