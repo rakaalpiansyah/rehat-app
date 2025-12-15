@@ -80,12 +80,41 @@ class _ScheduleScreenState extends State<ScheduleScreen>
     }
   }
 
-  void _deleteSchedule(String id) async {
+void _confirmDelete(ScheduleModel item) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text("Hapus Jadwal?"),
+          content: Text("Anda yakin ingin menghapus jadwal '${item.title}'? Semua alarm terkait akan dibatalkan."),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text("Batal"),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red[700],
+              ),
+              onPressed: () {
+                Navigator.pop(context); // Tutup dialog
+                _executeDelete(item.id); // Lanjutkan eksekusi penghapusan
+              },
+              child: const Text("Hapus", style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _executeDelete(String id) async {
     await DatabaseHelper.instance.delete(id);
+    await NotificationService().cancelAllNotifications();
     await NotificationService().rescheduleAllNotificationsBackground();
     _refreshSchedules();
   }
-
+  
   void _toggleStatus(String id, bool value) async {
     final index = allSchedules.indexWhere((item) => item.id == id);
     if (index != -1) {
@@ -148,7 +177,7 @@ class _ScheduleScreenState extends State<ScheduleScreen>
                         isDark: isDark,
                         onToggle: (val) => _toggleStatus(item.id, val),
                         onEdit: () => _navigateToEdit(item),
-                        onDelete: () => _deleteSchedule(item.id),
+                        onDelete: () => _confirmDelete(item),
                       );
                     },
                   ),
@@ -165,7 +194,7 @@ class _ScheduleScreenState extends State<ScheduleScreen>
           shape: BoxShape.circle,
           boxShadow: const [
             BoxShadow(
-              color: Color(0x667209B7), // 0.4 opacity
+              color: Color(0x667209B7), 
               blurRadius: 10,
               offset: Offset(0, 5),
             ),

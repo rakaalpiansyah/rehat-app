@@ -37,9 +37,8 @@ class NotificationService {
   static bool isLockScreenOpen = false;
   static const String channelIdBase = 'rehat_fullscreen_v1';
   static const int snoozeIdOffset = 900000;
-  static const int maxSnoozeCount = 3;
+  static const snoozeDurationMinutes = 5;
 
-  // Hapus tanda ? agar tidak warning nullable
   final FlutterLocalNotificationsPlugin notificationsPlugin =
       FlutterLocalNotificationsPlugin();
 
@@ -117,7 +116,9 @@ class NotificationService {
     final data = _parsePayload(payload);
     if (data == null) return;
 
-    await cancelNotification(data.id);
+    if (data.id < snoozeIdOffset){
+      await cancelNotification(data.id);
+    }
 
     if (actionId == 'dismiss') {
       await _handleDismiss(data);
@@ -130,6 +131,7 @@ class NotificationService {
 
   Future<void> _handleDismiss(_PayloadData data) async {
     await cancelNotification(snoozeIdOffset + data.id);
+    await cancelNotification(data.id);
 
     if (data.nextDuration > 0) {
       final isRehatPhase = data.title.contains("Rehat");
@@ -144,118 +146,201 @@ class NotificationService {
         nextBody,
         data.nextDuration,
         data.id,
+        snoozeCount: 0,
+        nextDuration: data.nextDuration,
       );
     }
-  }
-
-  Future<void> _handleSnooze(_PayloadData data) async {
-    if (data.snoozeCount < maxSnoozeCount) {
-      await _addDelayToDatabase(data.dbId, 5);
+    if (data.dbId != 'none') {
+      await _resetDelayInDatabase(data.dbId);
       await rescheduleAllNotificationsBackground();
     }
   }
 
-  // --- DATABASE & SCHEDULING ---
+  Future<void> _handleSnooze(_PayloadData data) async {
+      await cancelNotification(data.id);
+      await cancelNotification( snoozeIdOffset + data.id);
 
-  Future<void> rescheduleAllNotificationsBackground() async {
-    final allSchedules = await DatabaseHelper.instance.readAllSchedules();
-    if (allSchedules.isEmpty) return;
+      if (data.dbId != 'none') {
+      await _addDelayToDatabase(data.dbId, 5);
+  }
+      await _scheduleFollowUpAlarm(
+        data.title,
+        data.body,
+        snoozeDurationMinutes,
+        data.id,
+        dbId: data.dbId,
+        snoozeCount: data.snoozeCount + 1,
+        nextDuration: data.nextDuration,
+      );
+      await rescheduleAllNotificationsBackground();
+  }
+
+// --- DEBUGGING HELPER ---
+  void _logSchedule(String type, String title, String dayName, int dayOfWeek, int totalMinutes) {
+    final now = tz.TZDateTime.now(tz.local);
+    final time = _minutesToTime(totalMinutes);
+    
+    // Simulasi perhitungan tanggal yang sama dengan logic scheduling
+    var scheduledDate = tz.TZDateTime(
+        tz.local, now.year, now.month, now.day, time.hour, time.minute);
+
+    while (scheduledDate.weekday != dayOfWeek) {
+      scheduledDate = scheduledDate.add(const Duration(days: 1));
+    }
+    
+    // Jika waktu sudah lewat hari ini, berarti dijadwalkan minggu depan
+    if (scheduledDate.isBefore(now)) {
+      scheduledDate = scheduledDate.add(const Duration(days: 7));
+    }
+
+    final dateStr = "${scheduledDate.day}/${scheduledDate.month} ${scheduledDate.hour.toString().padLeft(2, '0')}:${scheduledDate.minute.toString().padLeft(2, '0')}";
+    
+    // Print Log dengan warna/format agar mudah dibaca
+    debugPrint("📅 [$dayName $dateStr] ($type) : $title");
+  }
+
+Future<void> rescheduleAllNotificationsBackground() async {
+    debugPrint("\n🔄 --- MEMULAI PENJADWALAN (LOGIKA CUT-OFF FIX) ---");
 
     await cancelAllNotifications();
+    final allSchedules = await DatabaseHelper.instance.readAllSchedules();
 
+    if (allSchedules.isEmpty) return;
+
+    final now = tz.TZDateTime.now(tz.local);
     int globalIdCounter = 1000;
-    final now = DateTime.now();
 
     for (var item in allSchedules) {
       if (!item.isActive || item.activeDays.isEmpty) continue;
 
-      final startMin = _timeToMinutes(_parseTime(item.startTime));
-      final endMin = _timeToMinutes(_parseTime(item.endTime));
-      final fixedEndMin = (endMin <= startMin) ? endMin + 1440 : endMin;
+      final startMinOriginal = _timeToMinutes(_parseTime(item.startTime));
+      final endMinOriginal = _timeToMinutes(_parseTime(item.endTime));
+      final currentDelay = item.delayMinutes;
+
+      // Hitung batas akhir
+      final fixedEndMin = (endMinOriginal <= startMinOriginal) 
+          ? endMinOriginal + 1440 
+          : endMinOriginal;
+
+      // ✅ FIX: Format jam manual tanpa context agar tidak crash di background
+      final finishTimeObj = _minutesToTime(fixedEndMin);
+      final finishTimeStr = "${finishTimeObj.hour.toString().padLeft(2, '0')}:${finishTimeObj.minute.toString().padLeft(2, '0')}";
+
+      debugPrint("\n📌 Jadwal: ${item.title} (Delay: +$currentDelay mnt) | Finish: $finishTimeStr");
 
       for (String dayName in item.activeDays) {
         final dayOfWeek = _getDayInt(dayName);
 
-        // 1. Jadwal Awal
-        await scheduleWeeklyNotification(
-          id: globalIdCounter++,
-          dbId: item.id,
-          title: "Mari Mulai Aktivitas 🌱",
-          body: "Siapkan diri untuk sesi ${item.title}. Semangat!",
-          time: _minutesToTime(startMin),
-          dayOfWeek: dayOfWeek,
-          nextDuration: item.intervalDuration,
-        );
+        var baseDate = tz.TZDateTime(tz.local, now.year, now.month, now.day);
+        while (baseDate.weekday != dayOfWeek) {
+          baseDate = baseDate.add(const Duration(days: 1));
+        }
+        
+        bool isSameDay = baseDate.year == now.year && baseDate.month == now.month && baseDate.day == now.day;
 
-        // 2. Loop Interval & Istirahat
-        int currentMin = startMin;
-        while (currentMin < fixedEndMin) {
-          final int rawRehatStart = currentMin + item.intervalDuration;
-          if (rawRehatStart >= fixedEndMin) break;
-
-          final rehatTimeObj = _minutesToTime(rawRehatStart);
-          final rehatDateTime = _calcNextDateTime(now, dayOfWeek, rehatTimeObj);
+        // --- FUNGSI JADWAL SATU TITIK ---
+        Future<void> schedulePoint(String type, String title, String body, int originalMinute, int duration) async {
           
-          final bool isFuture = rehatDateTime.isAfter(now);
-          final int effectiveRehatMin = isFuture 
-              ? rawRehatStart + item.delayMinutes 
-              : rawRehatStart;
-
-          if (effectiveRehatMin >= fixedEndMin) break;
-
-          await scheduleWeeklyNotification(
-            id: globalIdCounter++,
-            dbId: item.id,
-            title: "Waktunya Rehat Sejenak 🍵",
-            body: "Lepaskan penat sebentar, regangkan ototmu.",
-            time: _minutesToTime(effectiveRehatMin),
-            dayOfWeek: dayOfWeek,
-            nextDuration: item.breakDuration,
-          );
-
-          currentMin = rawRehatStart; 
-
-          final int rawFokusStart = currentMin + item.breakDuration;
-          if (rawFokusStart >= fixedEndMin) break;
-
-          final fokusTimeObj = _minutesToTime(rawFokusStart);
-          final fokusDateTime = _calcNextDateTime(now, dayOfWeek, fokusTimeObj);
+          int calculatedMinute = isSameDay ? (originalMinute + currentDelay) : originalMinute;
           
-          final bool isFokusFuture = fokusDateTime.isAfter(now);
-          final int effectiveFokusMin = isFokusFuture 
-              ? rawFokusStart + item.delayMinutes 
-              : rawFokusStart;
+          // 1. LOGIKA CUT-OFF (Batas Akhir)
+          if (calculatedMinute >= fixedEndMin) {
+             return; 
+          }
 
-          if (effectiveFokusMin >= fixedEndMin) break;
+          var scheduleDate = baseDate.add(Duration(minutes: calculatedMinute));
+          
+          // 2. Cek Masa Lalu (Original Time Base)
+          var originalDate = baseDate.add(Duration(minutes: originalMinute));
+          
+          if (isSameDay && originalDate.isBefore(now.add(const Duration(seconds: 1)))) {
+             scheduleDate = baseDate.add(const Duration(days: 7)).add(Duration(minutes: originalMinute));
+             // Cek lagi untuk minggu depan
+             if (originalMinute >= fixedEndMin) return;
+          }
 
-          await scheduleWeeklyNotification(
-            id: globalIdCounter++,
-            dbId: item.id,
-            title: "Kembali Fokus 🎯",
-            body: "Ayo lanjutkan aktivitasmu dengan energi baru.",
-            time: _minutesToTime(effectiveFokusMin),
-            dayOfWeek: dayOfWeek,
-            nextDuration: item.intervalDuration,
+          if (scheduleDate.isBefore(now)) return;
+
+          bool isDelayedLog = isSameDay && (calculatedMinute > originalMinute);
+          _logScheduleDirect(type, title, scheduleDate, isDelayedLog ? currentDelay : 0);
+
+          final details = await _buildNotificationDetails(showSnooze: true);
+          final payload = "${globalIdCounter++}|${item.id}|$title|$body|0|$duration";
+
+          await notificationsPlugin.zonedSchedule(
+            globalIdCounter,
+            title,
+            body,
+            scheduleDate,
+            details,
+            androidScheduleMode: AndroidScheduleMode.alarmClock,
+            matchDateTimeComponents: DateTimeComponents.dayOfWeekAndTime,
+            payload: payload,
           );
-
-          currentMin = rawFokusStart;
         }
 
-        // 3. Jadwal Selesai
-        await scheduleWeeklyNotification(
-          id: globalIdCounter++,
-          dbId: item.id,
-          title: "Aktivitas Selesai ✨",
-          body: "Terima kasih sudah produktif hari ini. Selamat beristirahat!",
-          time: _minutesToTime(fixedEndMin),
-          dayOfWeek: dayOfWeek,
-          nextDuration: 0,
+        // --- LOOPING URUTAN ---
+        await schedulePoint("MULAI", "Mari Mulai Aktivitas 🌱", "Siapkan diri.", startMinOriginal, item.intervalDuration);
+
+        int currentMin = startMinOriginal;
+        bool isFocusPhase = true;
+
+        while (currentMin < fixedEndMin) {
+          if (isFocusPhase) {
+            currentMin += item.intervalDuration;
+            if (currentMin >= fixedEndMin) break; 
+            
+            await schedulePoint("REHAT", "Waktunya Rehat Sejenak 🍵", "Lepaskan penat.", currentMin, item.breakDuration);
+            isFocusPhase = false;
+          } else {
+            currentMin += item.breakDuration;
+            if (currentMin >= fixedEndMin) break;
+
+            await schedulePoint("FOKUS", "Kembali Fokus 🎯", "Ayo kerja lagi.", currentMin, item.intervalDuration);
+            isFocusPhase = true;
+          }
+        }
+
+        // --- NOTIFIKASI FINISH ---
+        var finishDate = baseDate.add(Duration(minutes: fixedEndMin));
+        if (finishDate.isBefore(now)) finishDate = finishDate.add(const Duration(days: 7));
+        
+        _logScheduleDirect("FINISH", "Aktivitas Selesai ✨", finishDate, 0);
+
+        final details = await _buildNotificationDetails(showSnooze: true);
+        final payload = "${globalIdCounter++}|${item.id}|Aktivitas Selesai ✨|Selesai!|0|0";
+        await notificationsPlugin.zonedSchedule(
+            globalIdCounter,
+            "Aktivitas Selesai ✨", "Terima kasih sudah produktif!", finishDate, details,
+            androidScheduleMode: AndroidScheduleMode.alarmClock,
+            matchDateTimeComponents: DateTimeComponents.dayOfWeekAndTime,
+            payload: payload
         );
       }
     }
+    debugPrint("✅ --- PENJADWALAN SELESAI ---\n");
+  } 
+  Future<void> _resetDelayInDatabase(String id) async {
+    if (id == 'none') return;
+    try {
+      final item = await DatabaseHelper.instance.readSchedule(id);
+      if (item != null) {
+        // ✅ KUNCI: Kembalikan delay ke 0 saat Dismiss ditekan
+        item.delayMinutes = 0; 
+        await DatabaseHelper.instance.update(item);
+      }
+    } catch (e) {
+      debugPrint("❌ Error Reset DB Delay: $e");
+    }
   }
 
-  Future<void> scheduleWeeklyNotification({
+  void _logScheduleDirect(String type, String title, tz.TZDateTime date, int delay) {
+    final dateStr = "${date.day}/${date.month} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}";
+    String delayInfo = delay > 0 ? " (Delay +$delay)" : "";
+    debugPrint("📅 [$dateStr] ($type)$delayInfo : $title");
+  }
+
+    Future<void> scheduleWeeklyNotification({
     required int id,
     required String dbId,
     required String title,
@@ -263,6 +348,7 @@ class NotificationService {
     required TimeOfDay time,
     required int dayOfWeek,
     required int nextDuration,
+    int snoozeCount = 0,
   }) async {
     final now = tz.TZDateTime.now(tz.local);
     var scheduledDate = tz.TZDateTime(
@@ -276,7 +362,7 @@ class NotificationService {
     }
 
     final details = await _buildNotificationDetails(showSnooze: true);
-    final payload = "$id|$dbId|$title|$body|0|$nextDuration";
+    final payload = "$id|$dbId|$title|$body|$snoozeCount|$nextDuration";
 
     await notificationsPlugin.zonedSchedule(
       id,
@@ -291,13 +377,24 @@ class NotificationService {
   }
 
   Future<void> _scheduleFollowUpAlarm(
-      String title, String body, int durationMinutes, int sourceId) async {
+
+    String title,
+    String body,
+    int durationMinutes,
+    int sourceId,
+    {
+      String dbId = 'none',
+      int snoozeCount = 0,
+      int nextDuration = 0
+    }
+  ) 
+  async {
     final now = tz.TZDateTime.now(tz.local);
     final nextTime = now.add(Duration(minutes: durationMinutes));
-    final newId = sourceId + 1;
+    final newId = snoozeIdOffset + sourceId;
 
     final details = await _buildNotificationDetails(showSnooze: true);
-    final payload = "$newId|none|$title|$body|0|0";
+    final payload = "$newId|$dbId|$title|$body|$snoozeCount|$nextDuration";
 
     await notificationsPlugin.zonedSchedule(
       newId,
@@ -311,10 +408,10 @@ class NotificationService {
   }
 
   Future<void> showInstantNotification(String title, String body,
-      {int nextDuration = 0}) async {
+      {int nextDuration = 0, int snoozeCount = 0}) async {
     int id = DateTime.now().millisecondsSinceEpoch ~/ 1000;
     final details = await _buildNotificationDetails(showSnooze: true);
-    final payload = "$id|none|$title|$body|0|$nextDuration";
+    final payload = "$id|none|$title|$body|$snoozeCount|$nextDuration";
     
     await notificationsPlugin.show(id, title, body, details, payload: payload);
   }
@@ -372,7 +469,7 @@ class NotificationService {
         enableVibration: isVibrationEnabled, 
         vibrationPattern: vibrationPattern,
         
-        category: AndroidNotificationCategory.call,
+        category: AndroidNotificationCategory.alarm,
         audioAttributesUsage: AudioAttributesUsage.alarm,
         fullScreenIntent: true,
         ongoing: true,
@@ -401,6 +498,7 @@ class NotificationService {
       final item = await DatabaseHelper.instance.readSchedule(id);
       if (item != null) {
         item.delayMinutes = item.delayMinutes + minutesToAdd;
+        
         await DatabaseHelper.instance.update(item);
       }
     } catch (e) {
@@ -418,14 +516,17 @@ class NotificationService {
   _PayloadData? _parsePayload(String payload) {
     try {
       final parts = payload.split('|');
-      if (parts.length < 4) return null;
+      if (parts.length < 6) {
+        debugPrint("⚠️ Payload tidak lengkap: $payload");
+        return null;
+      } 
       return _PayloadData(
         id: int.tryParse(parts[0]) ?? 0,
         dbId: parts[1],
         title: parts[2],
         body: parts[3],
-        snoozeCount: (parts.length > 4) ? int.tryParse(parts[4]) ?? 0 : 0,
-        nextDuration: (parts.length > 5) ? int.tryParse(parts[5]) ?? 0 : 0,
+        snoozeCount:  int.tryParse(parts[4]) ?? 0,
+        nextDuration: int.tryParse(parts[5]) ?? 0,
       );
     } catch (e) {
       debugPrint("Error parsing payload: $e");
