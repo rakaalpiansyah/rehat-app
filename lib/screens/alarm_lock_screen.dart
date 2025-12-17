@@ -1,13 +1,10 @@
-// File: lib/screens/alarm_lock_screen.dart
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
-import 'package:flutter_ringtone_player/flutter_ringtone_player.dart'; // ✅ WAJIB ADA
-import 'package:shared_preferences/shared_preferences.dart'; // ✅ Untuk baca settingan user
-import 'package:vibration/vibration.dart'; // ✅ WAJIB UNTUK GETARAN
 
+// Import Service (Singleton) untuk kontrol stop
 import '../services/notification_service.dart';
 import '../core/theme.dart';
 
@@ -21,43 +18,48 @@ class AlarmLockScreen extends StatefulWidget {
 
 class _AlarmLockScreenState extends State<AlarmLockScreen>
     with SingleTickerProviderStateMixin {
+  
   late String _timeString;
   late String _dateString;
   late Timer _timer;
   late AnimationController _controller;
   late Animation<double> _scaleAnimation;
 
-  // Variabel untuk Getaran
-  Timer? _vibrationTimer;
-  // Pola getar: [diam, getar, diam, getar...]
-  static const List<int> _vibrationPattern = [0, 500, 500, 500, 500, 500];
-
-  // Channel untuk mematikan app & hapus history (Kotlin/Java)
+  // Channel untuk mematikan app & hapus history (Android Native)
   static const platform = MethodChannel('com.rehat/task_manager');
 
   // Data Payload
   int _notifId = 0;
+  // ignore: unused_field
+  String _dbId = 'none';
   String title = "Alarm";
   String body = "...";
   int snoozeCount = 0;
+  // ignore: unused_field
+  int _nextDuration = 0;
+  Timer? _autoCloseTimer;
   bool canSnooze = true;
 
   @override
   void initState() {
     super.initState();
     _parsePayload();
-    
-    // 1. Matikan notifikasi sistem agar tidak bentrok
+
+    // 1. Matikan notifikasi pop-up di status bar (jika ada) 
+    // agar user fokus ke layar penuh ini.
+    // Suara & Getaran TETAP JALAN dari Service, tidak di-stop di sini.
     if (_notifId != 0) {
       NotificationService().cancelNotification(_notifId);
     }
 
-    // 2. Mainkan Suara & Getaran sesuai settingan user
-    _playCustomAlarmSound();
-    _startVibration(); // ✅ Mulai getaran
-
+    // 2. Setup UI (Jam & Animasi)
     _updateTime();
     _timer = Timer.periodic(const Duration(seconds: 1), (_) => _updateTime());
+
+    _autoCloseTimer = Timer(const Duration(seconds: 20), () {
+       debugPrint("⌛ LockScreen Timeout: Menutup layar otomatis.");
+       _closeLockScreen();
+    });
 
     _controller = AnimationController(
       vsync: this,
@@ -69,86 +71,30 @@ class _AlarmLockScreenState extends State<AlarmLockScreen>
     );
   }
 
-  // --- LOGIC SUARA ---
-  Future<void> _playCustomAlarmSound() async {
-    final prefs = await SharedPreferences.getInstance();
-    final int soundIndex = prefs.getInt('selected_sound_index') ?? 5; 
-
-    debugPrint("🔊 Alarm Lock Screen: Playing sound index $soundIndex");
-
-    if (soundIndex == 0) {
-      // Default Alarm
-      FlutterRingtonePlayer().playAlarm(
-        looping: true, 
-        volume: 1.0, 
-        asAlarm: true, 
-      );
-    } else {
-      // Custom Asset Sound
-      try {
-        await FlutterRingtonePlayer().play(
-          fromAsset: "assets/sounds/sound$soundIndex.mp3", 
-          looping: true,
-          volume: 1.0,
-          asAlarm: true, 
-        );
-      } catch (e) {
-        debugPrint("⚠️ Gagal memutar asset, fallback: $e");
-        FlutterRingtonePlayer().playAlarm(looping: true, asAlarm: true);
-      }
-    }
-  }
-
-  // --- LOGIC GETARAN ---
-  Future<void> _startVibration() async {
-    final prefs = await SharedPreferences.getInstance();
-    // Baca settingan VIBRATION dari SharedPreferences
-    final bool isVibrationEnabled = prefs.getBool('vibration_enabled') ?? true; 
-    
-    // Cek apakah HP punya vibrator & fitur aktif
-    if (isVibrationEnabled && await Vibration.hasVibrator() == true) {
-        
-        // Panggil getaran pertama kali
-        _triggerVibrate();
-
-        // Loop getaran manual setiap 3 detik (karena repeat Android kadang tidak konsisten)
-        _vibrationTimer = Timer.periodic(const Duration(milliseconds: 3000), (timer) {
-            _triggerVibrate();
-        });
-    }
-  }
-
-  Future<void> _triggerVibrate() async {
-      if (await Vibration.hasCustomVibrationsSupport() == true) {
-           Vibration.vibrate(pattern: _vibrationPattern); 
-      } else {
-           Vibration.vibrate(duration: 1000); 
-      }
-  }
-
-  void _stopAlarmSound() {
-    FlutterRingtonePlayer().stop();
-    // Matikan Getaran juga
-    _vibrationTimer?.cancel();
-    Vibration.cancel();
-  }
-
-  // ... (Sisa kode Parsing & UI) ...
-
+  // --- PARSING PAYLOAD ---
   void _parsePayload() {
     if (widget.payload == 'none' || widget.payload.isEmpty) return;
-    final parts = widget.payload.split('|');
-    if (parts.length >= 4) {
-      setState(() {
-        _notifId = int.tryParse(parts[0]) ?? 0;
-        title = parts[2];
-        body = parts[3];
-        snoozeCount = int.tryParse(parts[4]) ?? 0;
-        if (snoozeCount >= 3) {
-          canSnooze = false;
-          body = "Sudah ditunda 3x.\nAyo hadapi sekarang! 💪";
-        }
-      });
+    try {
+      final parts = widget.payload.split('|');
+      if (parts.length >= 6) {
+        setState(() {
+          _notifId = int.tryParse(parts[0]) ?? 0;
+          _dbId = parts[1];
+          title = parts[2];
+          body = parts[3];
+          snoozeCount = int.tryParse(parts[4]) ?? 0;
+          _nextDuration = int.tryParse(parts[5]) ?? 0;
+          
+          // Logic: Jika ini adalah notifikasi "Selesai", matikan snooze
+          if (title.contains("Selesai")) {
+            canSnooze = false;
+          } else {
+            canSnooze = true;
+          }
+        });
+      }
+    } catch (e) {
+      debugPrint("❌ Error parsing payload di LockScreen: $e");
     }
   }
 
@@ -166,58 +112,83 @@ class _AlarmLockScreenState extends State<AlarmLockScreen>
     }
   }
 
-  // Modifikasi Close untuk Finish Task
+  // --- ACTION HANDLERS ---
+
+  void _onAction(String action) async {
+    // Panggil Service untuk stop suara & handle logic (update DB, schedule next, dll)
+    await NotificationService().handleActionLogic(
+      action,
+      widget.payload,
+      closeApp: false, 
+    );
+    
+    // Tutup Layar
+    _closeLockScreen();
+  }
+
   void _closeLockScreen() async {
+    _autoCloseTimer?.cancel();
     NotificationService.isLockScreenOpen = false;
-    _stopAlarmSound(); 
+    
+    // Pastikan suara mati (safety net jika handleActionLogic belum selesai)
+    await NotificationService().stopAlarmSound(); 
 
     try {
       if (Platform.isAndroid) {
-        // Panggil Native Java/Kotlin untuk kill app & hapus history
-        await platform.invokeMethod('finishAndRemoveTask');
+        // Kill Activity agar keluar dari mode Lock Screen
+        try {
+          await platform.invokeMethod('finishAndRemoveTask');
+        } on PlatformException {
+           SystemNavigator.pop(); 
+        }
       } else {
-        Navigator.of(context).pop();
+        if (mounted) Navigator.of(context).pop();
       }
     } catch (e) {
-      // Fallback
-      if (Platform.isAndroid) {
-        SystemNavigator.pop();
-      } else {
-        if (!mounted) return;
-        Navigator.of(context).pop();
-      }
+      debugPrint("Error closing app: $e");
+      if (mounted) Navigator.of(context).pop();
     }
-  }
-
-  void _onAction(String action) {
-    _stopAlarmSound();
-    NotificationService().handleActionLogic(
-      action,
-      widget.payload,
-      closeApp: true,
-    );
-    _closeLockScreen();
   }
 
   @override
   void dispose() {
-    _stopAlarmSound(); // Pastikan suara & getar mati saat dispose
+    // Safety: Stop suara jika layar ditutup paksa/back button
+    NotificationService().stopAlarmSound();
     _timer.cancel();
+    _autoCloseTimer?.cancel();
     _controller.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final bool isRehat = title.toLowerCase().contains("rehat");
+    // Membersihkan teks judul
     final String displayTitle = title.replaceAll(RegExp(r'\(Zzz.*\)'), '');
+    final bool isRehatPhase = title.toLowerCase().contains("rehat");
+    final bool isFinish = title.toLowerCase().contains("selesai");
+
+    // Tentukan Icon & Teks Tombol Utama
+    IconData mainIcon;
+    String mainText;
+
+    if (isFinish) {
+      mainIcon = Icons.check_circle_outline;
+      mainText = "SELESAI";
+    } else if (isRehatPhase) {
+      mainIcon = Icons.play_arrow_rounded;
+      mainText = "MULAI REHAT";
+    } else {
+      mainIcon = Icons.work_outline_rounded;
+      mainText = "LANJUT KERJA";
+    }
 
     return PopScope(
-      canPop: false,
+      canPop: false, // Cegah tombol back fisik
       child: Scaffold(
         backgroundColor: Colors.black,
         body: Stack(
           children: [
+            // Background Gradient
             Container(
               decoration: const BoxDecoration(
                 gradient: LinearGradient(
@@ -231,46 +202,120 @@ class _AlarmLockScreenState extends State<AlarmLockScreen>
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
+                  // 1. HEADER & BODY
                   Column(
                     children: [
                       const Icon(Icons.alarm, color: Colors.white54, size: 30),
                       const SizedBox(height: 10),
-                      Text(displayTitle, style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
+                      Text(
+                        displayTitle,
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold),
+                        textAlign: TextAlign.center,
+                      ),
                       const SizedBox(height: 8),
-                      Padding(padding: const EdgeInsets.symmetric(horizontal: 24), child: Text(body, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white70, fontSize: 16))),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        child: Text(
+                          body,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                              color: Colors.white70, fontSize: 16),
+                        ),
+                      ),
                     ],
                   ),
+
+                  // 2. JAM BESAR
                   Column(
                     children: [
-                      Text(_timeString, style: const TextStyle(color: Colors.white, fontSize: 80, fontWeight: FontWeight.w200, height: 1)),
-                      Text(_dateString, style: const TextStyle(color: AppTheme.primaryPurple, fontSize: 18, fontWeight: FontWeight.bold)),
+                      Text(
+                        _timeString,
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 80,
+                            fontWeight: FontWeight.w200,
+                            height: 1),
+                      ),
+                      Text(
+                        _dateString,
+                        style: const TextStyle(
+                            color: AppTheme.primaryPurple,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold),
+                      ),
                     ],
                   ),
+
+                  // 3. TOMBOL AKSI
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 40),
                     child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      mainAxisAlignment: canSnooze
+                          ? MainAxisAlignment.spaceBetween
+                          : MainAxisAlignment.center,
                       children: [
+                        // Tombol SNOOZE (Kiri)
                         if (canSnooze)
                           GestureDetector(
                             onTap: () => _onAction('snooze'),
-                            child: Column(children: [
-                              Container(padding: const EdgeInsets.all(20), decoration: const BoxDecoration(color: Color(0x1AFFFFFF), shape: BoxShape.circle), child: const Icon(Icons.snooze, color: Colors.white, size: 32)),
-                              const SizedBox(height: 10),
-                              Text("Tunda (${3 - snoozeCount})", style: const TextStyle(color: Colors.white54))
-                            ]),
-                          )
-                        else
-                          const SizedBox(width: 80),
+                            child: Column(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(20),
+                                  decoration: const BoxDecoration(
+                                    color: Color(0x1AFFFFFF), 
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(Icons.snooze,
+                                      color: Colors.white, size: 32),
+                                ),
+                                const SizedBox(height: 10),
+                                const Text(
+                                  "TUNDA",
+                                  style: TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                      letterSpacing: 1.2),
+                                ),
+                              ],
+                            ),
+                          ),
+
+                        // Tombol DISMISS / UTAMA (Kanan/Tengah)
                         GestureDetector(
                           onTap: () => _onAction('dismiss'),
                           child: ScaleTransition(
                             scale: _scaleAnimation,
-                            child: Column(children: [
-                              Container(padding: const EdgeInsets.all(30), decoration: const BoxDecoration(color: AppTheme.accentPink, shape: BoxShape.circle, boxShadow: [BoxShadow(color: Color(0x66EC4899), blurRadius: 30, spreadRadius: 5)]), child: Icon(isRehat ? Icons.play_arrow_rounded : Icons.check_rounded, color: Colors.white, size: 40)),
-                              const SizedBox(height: 16),
-                              Text(isRehat ? "LANJUT KERJA" : "MULAI REHAT", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, letterSpacing: 1.2))
-                            ]),
+                            child: Column(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(30),
+                                  decoration: const BoxDecoration(
+                                    color: AppTheme.accentPink,
+                                    shape: BoxShape.circle,
+                                    boxShadow: [
+                                      BoxShadow(
+                                          color: Color(0x66EC4899),
+                                          blurRadius: 30,
+                                          spreadRadius: 5)
+                                    ],
+                                  ),
+                                  child: Icon(mainIcon,
+                                      color: Colors.white, size: 40),
+                                ),
+                                const SizedBox(height: 16),
+                                Text(
+                                  mainText,
+                                  style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                      letterSpacing: 1.2),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ],
