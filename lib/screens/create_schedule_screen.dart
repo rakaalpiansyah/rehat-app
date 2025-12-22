@@ -19,13 +19,21 @@ class _CreateScheduleScreenState extends State<CreateScheduleScreen> {
   TimeOfDay _startTime = const TimeOfDay(hour: 9, minute: 0);
   TimeOfDay _endTime = const TimeOfDay(hour: 17, minute: 0);
   List<String> _selectedDays = [];
-  
+
   // Konfigurasi (Total Sesi Fokus dihapus, dihitung otomatis)
   double _intervalFocus = 45;
   double _breakDuration = 5;
   bool _activateImmediately = true;
 
-  final List<String> _days = const ["Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min"];
+  final List<String> _days = const [
+    "Sen",
+    "Sel",
+    "Rab",
+    "Kam",
+    "Jum",
+    "Sab",
+    "Min"
+  ];
 
   @override
   void initState() {
@@ -65,7 +73,7 @@ class _CreateScheduleScreenState extends State<CreateScheduleScreen> {
   int _calculateTotalDuration() {
     final startMinutes = _startTime.hour * 60 + _startTime.minute;
     final endMinutes = _endTime.hour * 60 + _endTime.minute;
-    
+
     int duration = endMinutes - startMinutes;
     if (duration < 0) duration += 1440; // Handle lintas hari (overlap midnight)
     return duration == 0 ? 60 : duration; // Default minimal 60 menit jika sama
@@ -111,8 +119,10 @@ class _CreateScheduleScreenState extends State<CreateScheduleScreen> {
     final isDark = theme.brightness == Brightness.dark;
 
     // Shadow colors (pengganti withOpacity)
-    final shadowColor = isDark ? const Color(0x4D000000) : const Color(0x0D000000);
-    final borderColor = isDark ? const Color(0xFF424242) : const Color(0xFFE0E0E0);
+    final shadowColor =
+        isDark ? const Color(0x4D000000) : const Color(0x0D000000);
+    final borderColor =
+        isDark ? const Color(0xFF424242) : const Color(0xFFE0E0E0);
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
@@ -141,7 +151,9 @@ class _CreateScheduleScreenState extends State<CreateScheduleScreen> {
                   hintText: "cth: Jadwal Kerja Pagi",
                   hintStyle: TextStyle(color: theme.hintColor),
                   filled: true,
-                  fillColor: isDark ? const Color(0xFF303030) : const Color(0xFFF5F5F5),
+                  fillColor: isDark
+                      ? const Color(0xFF303030)
+                      : const Color(0xFFF5F5F5),
                   contentPadding: const EdgeInsets.all(16),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
@@ -222,7 +234,8 @@ class _CreateScheduleScreenState extends State<CreateScheduleScreen> {
                       time: _startTime,
                       borderColor: borderColor,
                       onTap: () async {
-                        final p = await showTimePicker(context: context, initialTime: _startTime);
+                        final p = await showTimePicker(
+                            context: context, initialTime: _startTime);
                         if (p != null) setState(() => _startTime = p);
                       },
                     ),
@@ -234,7 +247,8 @@ class _CreateScheduleScreenState extends State<CreateScheduleScreen> {
                       time: _endTime,
                       borderColor: borderColor,
                       onTap: () async {
-                        final p = await showTimePicker(context: context, initialTime: _endTime);
+                        final p = await showTimePicker(
+                            context: context, initialTime: _endTime);
                         if (p != null) setState(() => _endTime = p);
                       },
                     ),
@@ -254,8 +268,8 @@ class _CreateScheduleScreenState extends State<CreateScheduleScreen> {
                   _MiniSlider(
                     label: "Interval Fokus",
                     value: _intervalFocus,
-                    min: 1,
-                    max: 120,
+                    min: 30,
+                    max: 180,
                     color: const Color(0xFF6B4EFF),
                     onChanged: (v) => setState(() => _intervalFocus = v),
                   ),
@@ -263,7 +277,7 @@ class _CreateScheduleScreenState extends State<CreateScheduleScreen> {
                   _MiniSlider(
                     label: "Durasi Istirahat",
                     value: _breakDuration,
-                    min: 1,
+                    min: 5,
                     max: 30,
                     color: Colors.pinkAccent,
                     onChanged: (v) => setState(() => _breakDuration = v),
@@ -280,7 +294,10 @@ class _CreateScheduleScreenState extends State<CreateScheduleScreen> {
                 color: cs.surface,
                 borderRadius: BorderRadius.circular(20),
                 boxShadow: [
-                  BoxShadow(color: shadowColor, blurRadius: 10, offset: const Offset(0, 5))
+                  BoxShadow(
+                      color: shadowColor,
+                      blurRadius: 10,
+                      offset: const Offset(0, 5))
                 ],
               ),
               child: Row(
@@ -324,7 +341,8 @@ class _CreateScheduleScreenState extends State<CreateScheduleScreen> {
               child: ElevatedButton.icon(
                 style: ElevatedButton.styleFrom(
                   backgroundColor: cs.primary,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16)),
                   elevation: 5,
                   shadowColor: cs.primary.withAlpha(100),
                 ),
@@ -372,7 +390,8 @@ class _SectionCard extends StatelessWidget {
         color: theme.colorScheme.surface,
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
-          BoxShadow(color: shadowColor, blurRadius: 10, offset: const Offset(0, 5))
+          BoxShadow(
+              color: shadowColor, blurRadius: 10, offset: const Offset(0, 5))
         ],
       ),
       child: Column(

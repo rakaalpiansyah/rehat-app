@@ -62,7 +62,8 @@ class _HomeScreenState extends State<HomeScreen> {
                             primaryColor: AppTheme.sessionColorPrimary,
                             // Logika warna background dinamis tanpa withOpacity
                             bgColor: isDark
-                                ? AppTheme.sessionColorPrimary.withAlpha(38) // ~15%
+                                ? AppTheme.sessionColorPrimary
+                                    .withAlpha(38) // ~15%
                                 : AppTheme.sessionColorLight,
                             onChanged: (v) => setState(() => totalFocus = v),
                           ),
@@ -75,7 +76,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             title: "Interval Fokus",
                             subtitle: "Waktu fokus",
                             value: intervalFocus,
-                            min: 1,
+                            min: 10,
                             max: 60,
                             unit: "m",
                             primaryColor: AppTheme.intervalColorPrimary,
@@ -93,7 +94,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             title: "Istirahat",
                             subtitle: "Waktu rehat",
                             value: breakDuration,
-                            min: 1,
+                            min: 5,
                             max: 15,
                             unit: "m",
                             primaryColor: AppTheme.breakColorPrimary,
@@ -333,7 +334,8 @@ class _ConfigCard extends StatelessWidget {
 
               // Badge Nilai
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
                   color: bgColor,
                   borderRadius: BorderRadius.circular(12),
