@@ -20,6 +20,7 @@ class DatabaseHelper {
     final dbPath = await getDatabasesPath();
     final path = join(dbPath, filePath);
 
+    // Menggunakan versi 1. Jika nanti ada perubahan struktur tabel, naikkan version.
     return await openDatabase(path, version: 1, onCreate: _createDB);
   }
 
@@ -40,7 +41,7 @@ class DatabaseHelper {
         totalDuration $intType,
         intervalDuration $intType,
         breakDuration $intType,
-        delayMinutes $intType DEFAULT 0  -- ✅ KOLOM BARU
+        delayMinutes $intType DEFAULT 0
       )
     ''');
   }
@@ -56,11 +57,11 @@ class DatabaseHelper {
   // 2. READ ALL
   Future<List<ScheduleModel>> readAllSchedules() async {
     final db = await instance.database;
-    final result = await db.query('schedules');
+    final result = await db.query('schedules'); // orderBy: 'startTime ASC' opsional
     return result.map((json) => ScheduleModel.fromMap(json)).toList();
   }
 
-  // ✅ 3. READ ONE (BARU: Untuk update saat Snooze)
+  // 3. READ ONE (Untuk keperluan update status/snooze)
   Future<ScheduleModel?> readSchedule(String id) async {
     final db = await instance.database;
     final maps = await db.query(
@@ -97,6 +98,7 @@ class DatabaseHelper {
     );
   }
 
+  // Menutup koneksi (opsional, jarang dipanggil manual di app mobile)
   Future close() async {
     final db = await instance.database;
     db.close();
